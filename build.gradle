@@ -1,0 +1,49 @@
+plugins {
+    id 'java'
+    id 'antlr'
+}
+
+group = 'org.tihrc.microj'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    antlr 'org.antlr:antlr4:4.13.1'
+    implementation 'org.antlr:antlr4-runtime:4.13.1'
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir 'src/generated/java'
+        }
+    }
+}
+
+generateGrammarSource {
+    arguments += ['-visitor', '-package', 'org.tihrc.microj.antlr']
+    outputDirectory = file('src/generated/java/org/tihrc/microj/antlr')
+}
+
+tasks.withType(JavaExec).configureEach {
+    systemProperty 'file.encoding', 'UTF-8'
+    systemProperty 'sun.stdout.encoding', 'UTF-8'
+    systemProperty 'sun.stderr.encoding', 'UTF-8'
+}
+
+tasks.withType(Test).configureEach {
+    systemProperty 'file.encoding', 'UTF-8'
+    systemProperty 'sun.stdout.encoding', 'UTF-8'
+    systemProperty 'sun.stderr.encoding', 'UTF-8'
+}
+
+test {
+    useJUnitPlatform()
+}
