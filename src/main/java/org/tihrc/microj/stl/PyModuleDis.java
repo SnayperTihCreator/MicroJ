@@ -13,8 +13,7 @@ public class PyModuleDis extends PyModule {
     public PyModuleDis(Interpreter interpreter) {
         super("dis");
 
-        registerAttribute("dis", new PyBuiltinFunction(((ctx, kwargs, args) -> {
-            PyObject arg = args[0];
+        registerAttribute("dis", new PyBuiltinFunction(((PyBuiltinFunction.Call1)(ctx, arg) -> {
             if (arg instanceof PyBoundMethod method){
                 arg = method.getFunc();
             }

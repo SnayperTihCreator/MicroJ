@@ -11,7 +11,7 @@ import org.tihrc.microj.units.SmartInt;
 public class PyInt extends PyObject implements Protocols.PyNumber, Protocols.PyComparable {
     public final SmartInt value;
     private static final int CACHE_MIN = -256;
-    private static final int CACHE_MAX = 256;
+    private static final int CACHE_MAX = 100000;
     private static final PyInt[] CACHE = new PyInt[CACHE_MAX - CACHE_MIN + 1];
     static {
         for (int i = CACHE_MIN; i <= CACHE_MAX; i++) {

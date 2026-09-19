@@ -1,4 +1,4 @@
-package org.tihrc.microj;
+package org.tihrc.microj.common;
 
 import org.tihrc.microj.compiler.InstructionGenerator;
 import org.tihrc.microj.core.Interpreter;

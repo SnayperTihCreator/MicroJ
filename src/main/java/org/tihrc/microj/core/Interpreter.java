@@ -4,22 +4,32 @@ import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.tihrc.microj.antlr.MicroJLexer;
 import org.tihrc.microj.antlr.MicroJParser;
+import org.tihrc.microj.backend.jvm.JvmCompiler;
+import org.tihrc.microj.backend.jvm.JvmScript;
 import org.tihrc.microj.compiler.IndentingLexer;
 import org.tihrc.microj.compiler.InstructionGenerator;
+import org.tihrc.microj.stl.PyModuleSys;
 import org.tihrc.microj.types.primitives.PyNone;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 public class Interpreter {
     private final StandardLibrary stl;
     private final RuntimeLibrary lib;
     public int MAX_RECURSION_DEPTH = 1500;
+    private final Map<InstructionGenerator.CompiledScript, JvmScript> jitCache = new WeakHashMap<>();
+
+    private final PyModuleSys sysModule;
 
     public Interpreter() {
         stl = new StandardLibrary(this);
         lib = new RuntimeLibrary(stl);
+
+        sysModule = (PyModuleSys)stl.getModule("sys");
     }
 
     public RuntimeLibrary getLib() {
@@ -54,9 +64,23 @@ public class Interpreter {
         }
 
         RuntimeExecuter vm = new RuntimeExecuter(this);
-        return vm.run(script);
+
+        try {
+            JvmScript jitScript = jitCache.get(script);
+            if (jitScript == null) {
+                JvmCompiler compiler = new JvmCompiler();
+                jitScript = compiler.compile(script.code(), script.constants());
+                jitCache.put(script, jitScript);
+            }
+            sysModule.setBackend("jit");
+            return jitScript.execute(vm);
+        } catch (Exception e) {
+            sysModule.setBackend("interpreter");
+            return vm.run(script);
+        }
     }
 
+    @SuppressWarnings("UnusedReturnValue")
     public PyObject run(InputStream scriptStream) {
         try {
             return run(compile(scriptStream));

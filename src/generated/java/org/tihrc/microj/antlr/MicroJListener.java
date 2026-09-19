@@ -58,6 +58,16 @@ public interface MicroJListener extends ParseTreeListener {
 	 */
 	void exitClassDef(MicroJParser.ClassDefContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link MicroJParser#baseList}.
+	 * @param ctx the parse tree
+	 */
+	void enterBaseList(MicroJParser.BaseListContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MicroJParser#baseList}.
+	 * @param ctx the parse tree
+	 */
+	void exitBaseList(MicroJParser.BaseListContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link MicroJParser#decorator}.
 	 * @param ctx the parse tree
 	 */
@@ -78,6 +88,16 @@ public interface MicroJListener extends ParseTreeListener {
 	 */
 	void exitParamList(MicroJParser.ParamListContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link MicroJParser#param}.
+	 * @param ctx the parse tree
+	 */
+	void enterParam(MicroJParser.ParamContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MicroJParser#param}.
+	 * @param ctx the parse tree
+	 */
+	void exitParam(MicroJParser.ParamContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link MicroJParser#returnStatement}.
 	 * @param ctx the parse tree
 	 */
@@ -87,6 +107,36 @@ public interface MicroJListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitReturnStatement(MicroJParser.ReturnStatementContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link MicroJParser#globalStatement}.
+	 * @param ctx the parse tree
+	 */
+	void enterGlobalStatement(MicroJParser.GlobalStatementContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MicroJParser#globalStatement}.
+	 * @param ctx the parse tree
+	 */
+	void exitGlobalStatement(MicroJParser.GlobalStatementContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link MicroJParser#nonlocalStatement}.
+	 * @param ctx the parse tree
+	 */
+	void enterNonlocalStatement(MicroJParser.NonlocalStatementContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MicroJParser#nonlocalStatement}.
+	 * @param ctx the parse tree
+	 */
+	void exitNonlocalStatement(MicroJParser.NonlocalStatementContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link MicroJParser#yieldStatement}.
+	 * @param ctx the parse tree
+	 */
+	void enterYieldStatement(MicroJParser.YieldStatementContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MicroJParser#yieldStatement}.
+	 * @param ctx the parse tree
+	 */
+	void exitYieldStatement(MicroJParser.YieldStatementContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link MicroJParser#breakStatement}.
 	 * @param ctx the parse tree
@@ -117,6 +167,36 @@ public interface MicroJListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitTryStatement(MicroJParser.TryStatementContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link MicroJParser#withStatement}.
+	 * @param ctx the parse tree
+	 */
+	void enterWithStatement(MicroJParser.WithStatementContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MicroJParser#withStatement}.
+	 * @param ctx the parse tree
+	 */
+	void exitWithStatement(MicroJParser.WithStatementContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link MicroJParser#delStatement}.
+	 * @param ctx the parse tree
+	 */
+	void enterDelStatement(MicroJParser.DelStatementContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MicroJParser#delStatement}.
+	 * @param ctx the parse tree
+	 */
+	void exitDelStatement(MicroJParser.DelStatementContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link MicroJParser#assertStatement}.
+	 * @param ctx the parse tree
+	 */
+	void enterAssertStatement(MicroJParser.AssertStatementContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MicroJParser#assertStatement}.
+	 * @param ctx the parse tree
+	 */
+	void exitAssertStatement(MicroJParser.AssertStatementContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link MicroJParser#exceptClause}.
 	 * @param ctx the parse tree
@@ -203,6 +283,18 @@ public interface MicroJListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitGeneralAssign(MicroJParser.GeneralAssignContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code GeneralAssignList}
+	 * labeled alternative in {@link MicroJParser#assignment}.
+	 * @param ctx the parse tree
+	 */
+	void enterGeneralAssignList(MicroJParser.GeneralAssignListContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code GeneralAssignList}
+	 * labeled alternative in {@link MicroJParser#assignment}.
+	 * @param ctx the parse tree
+	 */
+	void exitGeneralAssignList(MicroJParser.GeneralAssignListContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link MicroJParser#expr}.
 	 * @param ctx the parse tree
@@ -344,17 +436,17 @@ public interface MicroJListener extends ParseTreeListener {
 	 */
 	void exitTargetList(MicroJParser.TargetListContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code ListLiteral}
+	 * Enter a parse tree produced by the {@code SetComprehension}
 	 * labeled alternative in {@link MicroJParser#atom}.
 	 * @param ctx the parse tree
 	 */
-	void enterListLiteral(MicroJParser.ListLiteralContext ctx);
+	void enterSetComprehension(MicroJParser.SetComprehensionContext ctx);
 	/**
-	 * Exit a parse tree produced by the {@code ListLiteral}
+	 * Exit a parse tree produced by the {@code SetComprehension}
 	 * labeled alternative in {@link MicroJParser#atom}.
 	 * @param ctx the parse tree
 	 */
-	void exitListLiteral(MicroJParser.ListLiteralContext ctx);
+	void exitSetComprehension(MicroJParser.SetComprehensionContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code Variable}
 	 * labeled alternative in {@link MicroJParser#atom}.
@@ -367,6 +459,66 @@ public interface MicroJListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitVariable(MicroJParser.VariableContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code FloatLiteral}
+	 * labeled alternative in {@link MicroJParser#atom}.
+	 * @param ctx the parse tree
+	 */
+	void enterFloatLiteral(MicroJParser.FloatLiteralContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code FloatLiteral}
+	 * labeled alternative in {@link MicroJParser#atom}.
+	 * @param ctx the parse tree
+	 */
+	void exitFloatLiteral(MicroJParser.FloatLiteralContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code GenExp}
+	 * labeled alternative in {@link MicroJParser#atom}.
+	 * @param ctx the parse tree
+	 */
+	void enterGenExp(MicroJParser.GenExpContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code GenExp}
+	 * labeled alternative in {@link MicroJParser#atom}.
+	 * @param ctx the parse tree
+	 */
+	void exitGenExp(MicroJParser.GenExpContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code CallAtom}
+	 * labeled alternative in {@link MicroJParser#atom}.
+	 * @param ctx the parse tree
+	 */
+	void enterCallAtom(MicroJParser.CallAtomContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code CallAtom}
+	 * labeled alternative in {@link MicroJParser#atom}.
+	 * @param ctx the parse tree
+	 */
+	void exitCallAtom(MicroJParser.CallAtomContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code DictLiteral}
+	 * labeled alternative in {@link MicroJParser#atom}.
+	 * @param ctx the parse tree
+	 */
+	void enterDictLiteral(MicroJParser.DictLiteralContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code DictLiteral}
+	 * labeled alternative in {@link MicroJParser#atom}.
+	 * @param ctx the parse tree
+	 */
+	void exitDictLiteral(MicroJParser.DictLiteralContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code ListLiteral}
+	 * labeled alternative in {@link MicroJParser#atom}.
+	 * @param ctx the parse tree
+	 */
+	void enterListLiteral(MicroJParser.ListLiteralContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code ListLiteral}
+	 * labeled alternative in {@link MicroJParser#atom}.
+	 * @param ctx the parse tree
+	 */
+	void exitListLiteral(MicroJParser.ListLiteralContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code Number}
 	 * labeled alternative in {@link MicroJParser#atom}.
@@ -392,18 +544,6 @@ public interface MicroJListener extends ParseTreeListener {
 	 */
 	void exitStringLiteral(MicroJParser.StringLiteralContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code FloatLiteral}
-	 * labeled alternative in {@link MicroJParser#atom}.
-	 * @param ctx the parse tree
-	 */
-	void enterFloatLiteral(MicroJParser.FloatLiteralContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code FloatLiteral}
-	 * labeled alternative in {@link MicroJParser#atom}.
-	 * @param ctx the parse tree
-	 */
-	void exitFloatLiteral(MicroJParser.FloatLiteralContext ctx);
-	/**
 	 * Enter a parse tree produced by the {@code TupleLiteral}
 	 * labeled alternative in {@link MicroJParser#atom}.
 	 * @param ctx the parse tree
@@ -428,18 +568,6 @@ public interface MicroJListener extends ParseTreeListener {
 	 */
 	void exitGetAttrAtom(MicroJParser.GetAttrAtomContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code CallAtom}
-	 * labeled alternative in {@link MicroJParser#atom}.
-	 * @param ctx the parse tree
-	 */
-	void enterCallAtom(MicroJParser.CallAtomContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code CallAtom}
-	 * labeled alternative in {@link MicroJParser#atom}.
-	 * @param ctx the parse tree
-	 */
-	void exitCallAtom(MicroJParser.CallAtomContext ctx);
-	/**
 	 * Enter a parse tree produced by the {@code ParenAtom}
 	 * labeled alternative in {@link MicroJParser#atom}.
 	 * @param ctx the parse tree
@@ -451,6 +579,42 @@ public interface MicroJListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitParenAtom(MicroJParser.ParenAtomContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code DictComprehension}
+	 * labeled alternative in {@link MicroJParser#atom}.
+	 * @param ctx the parse tree
+	 */
+	void enterDictComprehension(MicroJParser.DictComprehensionContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code DictComprehension}
+	 * labeled alternative in {@link MicroJParser#atom}.
+	 * @param ctx the parse tree
+	 */
+	void exitDictComprehension(MicroJParser.DictComprehensionContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code ListComprehension}
+	 * labeled alternative in {@link MicroJParser#atom}.
+	 * @param ctx the parse tree
+	 */
+	void enterListComprehension(MicroJParser.ListComprehensionContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code ListComprehension}
+	 * labeled alternative in {@link MicroJParser#atom}.
+	 * @param ctx the parse tree
+	 */
+	void exitListComprehension(MicroJParser.ListComprehensionContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code Lambda}
+	 * labeled alternative in {@link MicroJParser#atom}.
+	 * @param ctx the parse tree
+	 */
+	void enterLambda(MicroJParser.LambdaContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code Lambda}
+	 * labeled alternative in {@link MicroJParser#atom}.
+	 * @param ctx the parse tree
+	 */
+	void exitLambda(MicroJParser.LambdaContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code SubscriptAtom}
 	 * labeled alternative in {@link MicroJParser#atom}.
@@ -475,18 +639,6 @@ public interface MicroJListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitImagLiteral(MicroJParser.ImagLiteralContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code DictLiteral}
-	 * labeled alternative in {@link MicroJParser#atom}.
-	 * @param ctx the parse tree
-	 */
-	void enterDictLiteral(MicroJParser.DictLiteralContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code DictLiteral}
-	 * labeled alternative in {@link MicroJParser#atom}.
-	 * @param ctx the parse tree
-	 */
-	void exitDictLiteral(MicroJParser.DictLiteralContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link MicroJParser#exprList}.
 	 * @param ctx the parse tree

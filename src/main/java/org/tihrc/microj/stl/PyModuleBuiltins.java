@@ -20,8 +20,7 @@ public class PyModuleBuiltins extends PyModule {
         registerAttribute("False", PyBool.FALSE);
         registerAttribute("None", PyNone.INSTANCE);
 
-        registerAttribute("str", new PyBuiltinFunction((ctx, kwargs, args) -> {
-            PyObject arg = args[0];
+        registerAttribute("str", new PyBuiltinFunction((PyBuiltinFunction.Call1) (ctx, arg) -> {
             PyObject strMethod = arg.findAttribute("__str__");
             if (strMethod instanceof PyFunction) {
                 PyObject res = ctx.callSync(strMethod, arg);
@@ -34,8 +33,7 @@ public class PyModuleBuiltins extends PyModule {
             }
             return new PyString(arg.pyDanderStr());
         }));
-        registerAttribute("repr", new PyBuiltinFunction((ctx, kwargs, args) -> {
-            PyObject arg = args[0];
+        registerAttribute("repr", new PyBuiltinFunction((PyBuiltinFunction.Call1) (ctx, arg) -> {
             PyObject reprMethod = arg.findAttribute("__repr__");
             if (reprMethod != null) {
                 PyObject res = ctx.callSync(reprMethod, arg);
@@ -44,7 +42,7 @@ public class PyModuleBuiltins extends PyModule {
             return new PyString(arg.pyDanderRepr());
         }));
 
-        registerAttribute("print", new PyBuiltinFunction((ctx, kwargs, args) -> {
+        registerAttribute("print", new PyBuiltinFunction((PyBuiltinFunction.CallVarArgs) (ctx, args) -> {
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < args.length; i++) {
                 if (i > 0) sb.append(" ");
@@ -57,8 +55,7 @@ public class PyModuleBuiltins extends PyModule {
             return PyNone.INSTANCE;
         }));
 
-        registerAttribute("len", new PyBuiltinFunction((ctx, kwargs, args) -> {
-            PyObject obj = args[0];
+        registerAttribute("len", new PyBuiltinFunction((PyBuiltinFunction.Call1) (ctx, obj) -> {
             if (obj instanceof Protocols.PyContainer seq) return PyInt.from(seq.pyDanderLen());
 
             PyObject lenMethod = obj.findAttribute("__len__");
@@ -66,14 +63,20 @@ public class PyModuleBuiltins extends PyModule {
                 PyObject res = ctx.callSync(lenMethod, obj);
                 if (res instanceof PyInt i) return i;
             }
-            return new Exceptions.PyTypeError("object has no len()").raise();
+            return new Exceptions.PyTypeError("%s has no len()".formatted(obj)).raise();
         }));
 
-        registerAttribute("type", new PyBuiltinFunction(((ctx, kwargs, args) -> {
-            return PyNone.INSTANCE;
-        })));
+        registerAttribute("next", new PyBuiltinFunction((PyBuiltinFunction.Call1) (ctx, arg) -> {
+            PyObject nextMethod = arg.findAttribute("__next__");
+            if (nextMethod != null) {
+                return ctx.callSync(nextMethod, arg);
+            }
+            return new Exceptions.PyTypeError("%s has no next()".formatted(arg)).raise();
+        }));
 
-        registerAttribute("range", new PyBuiltinFunction((ctx, kwargs, args) -> {
+        registerAttribute("type", new PyBuiltinFunction(((PyBuiltinFunction.Call1)(ctx, arg) -> new PyString(arg.getClass().toString()))));
+
+        registerAttribute("range", new PyBuiltinFunction((PyBuiltinFunction.CallVarArgs) (ctx, args) -> {
             Integer start = 0, stop = 0, step = 1;
             if (args.length == 1) stop = Transforms.fromPython(args[0], int.class);
             else if (args.length == 2) {
@@ -87,8 +90,17 @@ public class PyModuleBuiltins extends PyModule {
             return new PyRange(start, stop, step);
         }));
 
-        registerAttribute("dir", new PyBuiltinFunction(((ctx, kwargs, args) -> {
-            PyObject arg = args[0];
+        registerAttribute("abs", new PyBuiltinFunction(((PyBuiltinFunction.Call1)(ctx, arg) -> {
+            Integer value1 = Transforms.fromPythonOrNull(arg, Integer.class);
+            if (value1 != null)
+                return Transforms.toPython(Math.abs(value1));
+            Double value2 = Transforms.fromPythonOrNull(arg, Double.class);
+            if (value2 != null)
+                return Transforms.toPython(Math.abs(value2));
+            return new Exceptions.PyTypeError("Not abs").raise();
+        })));
+
+        registerAttribute("dir", new PyBuiltinFunction(((PyBuiltinFunction.Call1)(ctx, arg) -> {
             PyObject dirMethod = arg.findAttribute("__dir__");
             if (dirMethod != null) {
                 PyObject res = ctx.callSync(dirMethod, arg);

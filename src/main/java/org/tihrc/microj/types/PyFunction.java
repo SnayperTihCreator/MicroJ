@@ -8,6 +8,7 @@ import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.core.transforms.PyExport;
 import org.tihrc.microj.types.primitives.PyNone;
 import org.tihrc.microj.units.Frame;
+import org.tihrc.microj.units.FrameTask;
 
 import java.util.List;
 import java.util.Map;
@@ -35,8 +36,8 @@ public class PyFunction extends PyObject implements Protocols.PyCallable {
         return Frame.createClosure(body, closure, constants);
     }
 
-    private Frame prepareFrame(PyObject[] args, Map<String, PyObject> kwargs) {
-        Frame frame = createClosure();
+    private Frame prepareFrame(RuntimeExecuter ctx, PyObject[] args, Map<String, PyObject> kwargs) {
+        Frame frame = ctx.obtainFrame(body, constants, closure);
 
         int paramCount = params.size();
 
@@ -57,13 +58,13 @@ public class PyFunction extends PyObject implements Protocols.PyCallable {
 
     @Override
     public void pyDanderCall(RuntimeExecuter ctx, Consumer<PyObject> callback, PyObject[] args, Map<String, PyObject> kwargs) {
-        Frame frame = prepareFrame(args, kwargs);
+        Frame frame = prepareFrame(ctx, args, kwargs);
         ctx.pushTask(frame.createTask(callback));
     }
 
     @Override
     public PyObject pyDanderCallFast(RuntimeExecuter ctx, PyObject[] args, String[] kwNames, PyObject[] kwValues) {
-        Frame frame = prepareFrameFast(args, kwNames, kwValues);
+        Frame frame = prepareFrameFast(ctx, args, kwNames, kwValues);
         return ctx.runFrameSync(frame);
     }
 
@@ -104,12 +105,8 @@ public class PyFunction extends PyObject implements Protocols.PyCallable {
 
     }
 
-    private Frame prepareFrameFast(
-            PyObject[] args,
-            String[] kwNames,
-            PyObject[] kwValues
-    ) {
-        Frame frame = createClosure();
+    private Frame prepareFrameFast(RuntimeExecuter ctx, PyObject[] args, String[] kwNames, PyObject[] kwValues) {
+        Frame frame = ctx.obtainFrame(body, constants, closure);
 
         int paramCount = params.size();
 
@@ -142,13 +139,13 @@ public class PyFunction extends PyObject implements Protocols.PyCallable {
     @Override
     @PyExport(name = "__call__")
     public PyObject pyDanderCall(RuntimeExecuter ctx, Map<String, PyObject> kwargs, PyObject... args) {
-        Frame newFrame = prepareFrame(args, kwargs);
-        PyObject[] resultHolder = new PyObject[]{PyNone.INSTANCE};
+        Frame newFrame = prepareFrame(ctx, args, kwargs);
 
         int targetSize = ctx.getSizeTasks();
-        ctx.pushTask(newFrame.createTask(res -> resultHolder[0] = res));
+        FrameTask task = newFrame.createTask();
+        ctx.pushTask(task);
         ctx.runUntil(targetSize);
-        return resultHolder[0];
+        return task.result();
     }
 
     @Override

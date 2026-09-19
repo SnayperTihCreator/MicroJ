@@ -124,6 +124,35 @@ public class PyMethodProxy extends PyObject implements Protocols.PyCallable {
     }
 
     @Override
+    public PyObject pyDanderCallFast(RuntimeExecuter ctx, PyObject[] args, String[] kwNames, PyObject[] kwValues) {
+        if ((kwNames == null || kwNames.length == 0) && fastProxy != null) {
+            try {
+                Object self = args.length > 0 ? args[0] : null;
+                Object result = switch (paramCount) {
+                    case 0 -> ((PyTypeExporter.PyFunc0) fastProxy).call(self);
+                    case 1 -> ((PyTypeExporter.PyFunc1) fastProxy).call(
+                            self,
+                            args.length > 1 ? Transforms.fromPython(args[1], paramTypes[0]) : null
+                    );
+                    case 2 -> ((PyTypeExporter.PyFunc2) fastProxy).call(
+                            self,
+                            args.length > 1 ? Transforms.fromPython(args[1], paramTypes[0]) : null,
+                            args.length > 2 ? Transforms.fromPython(args[2], paramTypes[1]) : null
+                    );
+                    default -> throw new RuntimeException("Unsupported param count in fast path");
+                };
+                return Transforms.toPython(result);
+            } catch (Throwable e) {
+                if (e instanceof PyUnwind) throw (PyUnwind) e;
+                throw new RuntimeException("Failed to call exported method (fast): " + e.getMessage(), e);
+            }
+        }
+
+        // Медленный путь для kwargs
+        return Protocols.PyCallable.super.pyDanderCallFast(ctx, args, kwNames, kwValues);
+    }
+
+    @Override
     public String toString() {
         return "PyMethodProxy<%s>".formatted(name);
     }

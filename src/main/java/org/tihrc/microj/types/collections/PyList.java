@@ -18,11 +18,11 @@ public class PyList extends PyObject implements Protocols.PyContainer, Protocols
     protected final List<PyObject> items;
 
     public PyList(PyObject[] items) {
-        this.items = Arrays.asList(items);
+        this.items = new ArrayList<>(java.util.Arrays.asList(items));
     }
 
     public PyList(List<PyObject> items) {
-        this.items = items.stream().toList();
+        this.items = new ArrayList<>(items);
     }
 
     public static PyList from(PyObject... items) {

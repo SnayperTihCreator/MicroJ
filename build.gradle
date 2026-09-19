@@ -1,35 +1,55 @@
 plugins {
-    id 'java'
+    id 'java-library'
     id 'antlr'
+    id 'maven-publish'
 }
 
 group = 'org.tihrc.microj'
 version = '1.0-SNAPSHOT'
+
+java.toolchain {
+    languageVersion = JavaLanguageVersion.of(21)
+}
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
+    // ANTLR
+    antlr 'org.antlr:antlr4:4.13.1'
+    api 'org.antlr:antlr4-runtime:4.13.1'
+    implementation 'org.antlr:antlr4-runtime:4.13.1'
+    // ASM
+    api 'org.ow2.asm:asm:9.8'
+    implementation 'org.ow2.asm:asm-commons:9.8'
+    implementation 'org.ow2.asm:asm-util:9.8'
+
+    //TEST
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
 
-    antlr 'org.antlr:antlr4:4.13.1'
-    implementation 'org.antlr:antlr4-runtime:4.13.1'
+def antlrOutput = layout.buildDirectory.dir('generated-src/antlr/main')
+
+generateGrammarSource {
+    arguments += ['-visitor', '-package', 'org.tihrc.microj.antlr']
+    outputDirectory = antlrOutput.get().asFile
 }
 
 sourceSets {
     main {
         java {
-            srcDir 'src/generated/java'
+            srcDir antlrOutput
         }
     }
 }
 
-generateGrammarSource {
-    arguments += ['-visitor', '-package', 'org.tihrc.microj.antlr']
-    outputDirectory = file('src/generated/java/org/tihrc/microj/antlr')
+compileJava.dependsOn generateGrammarSource
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
 }
 
 tasks.withType(JavaExec).configureEach {
@@ -46,4 +66,25 @@ tasks.withType(Test).configureEach {
 
 test {
     useJUnitPlatform()
+}
+
+java {
+    withSourcesJar()
+}
+
+tasks.named('sourcesJar') {
+    dependsOn tasks.named('generateGrammarSource')
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    exclude '**/*.interp', '**/*.tokens', '**/*.g4'
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+            groupId = project.group
+            artifactId = 'microj'
+            version = project.version
+        }
+    }
 }

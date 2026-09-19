@@ -1,11 +1,10 @@
-package org.tihrc.microj;
+package org.tihrc.microj.common;
 
 import org.junit.jupiter.api.*;
 import org.tihrc.microj.core.Interpreter;
 import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.exceptions.PyUnwind;
 import org.tihrc.microj.types.primitives.*;
-import org.tihrc.microj.units.SmartFloat;
 import org.tihrc.microj.units.SmartInt;
 
 import java.io.ByteArrayInputStream;

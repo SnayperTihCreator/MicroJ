@@ -12,11 +12,11 @@ public class PyModuleTime extends PyModule {
     public PyModuleTime(Interpreter interpreter) {
         super("time");
 
-        registerAttribute("time", new PyBuiltinFunction((ctx, kwargs, args) ->
+        registerAttribute("time", new PyBuiltinFunction((ctx) ->
                 new PyFloat(new SmartFloat(System.currentTimeMillis() / 1000.0))));
 
-        registerAttribute("sleep", new PyBuiltinFunction((ctx, kwargs, args) -> {
-            double seconds = Transforms.fromPythonOrNull(args[0], double.class);
+        registerAttribute("sleep", new PyBuiltinFunction((PyBuiltinFunction.Call1) (ctx, arg) -> {
+            double seconds = Transforms.fromPythonOrNull(arg, double.class);
             long ms = (long) (seconds * 1000);
             try { Thread.sleep(ms); } catch (InterruptedException ignored) { }
             return PyNone.INSTANCE;

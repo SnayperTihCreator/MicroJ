@@ -77,6 +77,18 @@ public class MicroJBaseListener implements MicroJListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterBaseList(MicroJParser.BaseListContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitBaseList(MicroJParser.BaseListContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterDecorator(MicroJParser.DecoratorContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -101,6 +113,18 @@ public class MicroJBaseListener implements MicroJListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterParam(MicroJParser.ParamContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitParam(MicroJParser.ParamContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterReturnStatement(MicroJParser.ReturnStatementContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -108,6 +132,42 @@ public class MicroJBaseListener implements MicroJListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitReturnStatement(MicroJParser.ReturnStatementContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterGlobalStatement(MicroJParser.GlobalStatementContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitGlobalStatement(MicroJParser.GlobalStatementContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterNonlocalStatement(MicroJParser.NonlocalStatementContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitNonlocalStatement(MicroJParser.NonlocalStatementContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterYieldStatement(MicroJParser.YieldStatementContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitYieldStatement(MicroJParser.YieldStatementContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -144,6 +204,42 @@ public class MicroJBaseListener implements MicroJListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitTryStatement(MicroJParser.TryStatementContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterWithStatement(MicroJParser.WithStatementContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitWithStatement(MicroJParser.WithStatementContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterDelStatement(MicroJParser.DelStatementContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitDelStatement(MicroJParser.DelStatementContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterAssertStatement(MicroJParser.AssertStatementContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitAssertStatement(MicroJParser.AssertStatementContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -240,6 +336,18 @@ public class MicroJBaseListener implements MicroJListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitGeneralAssign(MicroJParser.GeneralAssignContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterGeneralAssignList(MicroJParser.GeneralAssignListContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitGeneralAssignList(MicroJParser.GeneralAssignListContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -413,13 +521,13 @@ public class MicroJBaseListener implements MicroJListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterListLiteral(MicroJParser.ListLiteralContext ctx) { }
+	@Override public void enterSetComprehension(MicroJParser.SetComprehensionContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void exitListLiteral(MicroJParser.ListLiteralContext ctx) { }
+	@Override public void exitSetComprehension(MicroJParser.SetComprehensionContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -432,6 +540,66 @@ public class MicroJBaseListener implements MicroJListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitVariable(MicroJParser.VariableContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterFloatLiteral(MicroJParser.FloatLiteralContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitFloatLiteral(MicroJParser.FloatLiteralContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterGenExp(MicroJParser.GenExpContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitGenExp(MicroJParser.GenExpContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterCallAtom(MicroJParser.CallAtomContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitCallAtom(MicroJParser.CallAtomContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterDictLiteral(MicroJParser.DictLiteralContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitDictLiteral(MicroJParser.DictLiteralContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterListLiteral(MicroJParser.ListLiteralContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitListLiteral(MicroJParser.ListLiteralContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -461,18 +629,6 @@ public class MicroJBaseListener implements MicroJListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterFloatLiteral(MicroJParser.FloatLiteralContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitFloatLiteral(MicroJParser.FloatLiteralContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
 	@Override public void enterTupleLiteral(MicroJParser.TupleLiteralContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -497,18 +653,6 @@ public class MicroJBaseListener implements MicroJListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterCallAtom(MicroJParser.CallAtomContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitCallAtom(MicroJParser.CallAtomContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
 	@Override public void enterParenAtom(MicroJParser.ParenAtomContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -516,6 +660,42 @@ public class MicroJBaseListener implements MicroJListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitParenAtom(MicroJParser.ParenAtomContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterDictComprehension(MicroJParser.DictComprehensionContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitDictComprehension(MicroJParser.DictComprehensionContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterListComprehension(MicroJParser.ListComprehensionContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitListComprehension(MicroJParser.ListComprehensionContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterLambda(MicroJParser.LambdaContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitLambda(MicroJParser.LambdaContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -540,18 +720,6 @@ public class MicroJBaseListener implements MicroJListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitImagLiteral(MicroJParser.ImagLiteralContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void enterDictLiteral(MicroJParser.DictLiteralContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitDictLiteral(MicroJParser.DictLiteralContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

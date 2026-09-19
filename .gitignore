@@ -137,3 +137,4 @@ node_modules/
 *.heap
 *.dump
 *.jfr
+/src/main/resources/scripts/

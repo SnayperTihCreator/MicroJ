@@ -10,7 +10,9 @@ import org.tihrc.microj.types.collections.PyTuple;
 import org.tihrc.microj.types.primitives.PyInt;
 import org.tihrc.microj.units.Frame;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 public class BuilderInstructions {
@@ -49,13 +51,19 @@ public class BuilderInstructions {
         }
     }
 
-    public record BuildClass(String name) implements Instruction {
+    public record BuildClass(String name, String[] bases) implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter vm) {
-            PyClass pyClass = new PyClass(name, f.locals);
-
+            List<PyClass> resolvedBases = new ArrayList<>();
+            for (String baseName : bases) {
+                PyObject baseObj = f.locals.get(baseName);
+                if (baseObj == null) baseObj = vm.getGlobals().get(baseName);
+                if (baseObj instanceof PyClass baseClass) {
+                    resolvedBases.add(baseClass);
+                }
+            }
+            PyClass pyClass = new PyClass(name, f.locals, resolvedBases);
             for (Capability cap: Capability.values())
                 if (cap.matches(f.locals)) pyClass.addCap(cap);
-
             f.stack.push(pyClass);
             return true;
         }

@@ -3,6 +3,7 @@ package org.tihrc.microj.compiler;
 import org.tihrc.microj.antlr.MicroJBaseVisitor;
 import org.tihrc.microj.antlr.MicroJParser;
 import org.tihrc.microj.compiler.instruction.*;
+import org.tihrc.microj.core.PyCode;
 import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.types.collections.PyString;
@@ -62,6 +63,9 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
 
     @Override
     public List<Instruction> visitSimpleStatement(MicroJParser.SimpleStatementContext ctx) {
+        if (ctx.PASS() != null) {
+            return bytecode;
+        }
         if (ctx.assignment() != null) {
             visit(ctx.assignment());
         } else if (ctx.returnStatement() != null) {
@@ -138,16 +142,16 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
 
         int jumpToFinallyIndex = bytecode.size();
         bytecode.add(null);
-        List<Integer> checkExcIndices = new ArrayList<>();
+
+        List<Integer> checkIndices = new ArrayList<>();
         List<String> typeNames = new ArrayList<>();
+        List<Integer> bodyStarts = new ArrayList<>();
+        List<Integer> nextCheckIndices = new ArrayList<>();
 
         for (int i = 0; i < ctx.EXCEPT().size(); i++) {
-            int currentExceptStart = bytecode.size();
-
-            if (i > 0) {
-                bytecode.set(checkExcIndices.get(i - 1),
-                        new ErrorInstructions.CheckException(typeNames.get(i - 1), currentExceptStart));
-            }
+            int checkIndex = bytecode.size();
+            bytecode.add(null);
+            checkIndices.add(checkIndex);
 
             String typeName = null;
             if (ctx.exceptClause(i) != null) {
@@ -158,9 +162,12 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
             }
             typeNames.add(typeName);
 
-            int checkJumpIndex = bytecode.size();
+            int nextCheckIndex = bytecode.size();
             bytecode.add(null);
-            checkExcIndices.add(checkJumpIndex);
+            nextCheckIndices.add(nextCheckIndex);
+
+            int bodyStart = bytecode.size();
+            bodyStarts.add(bodyStart);
 
             if (ctx.exceptClause(i) != null && ctx.exceptClause(i).AS() != null) {
                 int nameCount = ctx.exceptClause(i).NAME().size();
@@ -176,10 +183,11 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
 
         int reRaiseTarget = bytecode.size();
         if (!ctx.EXCEPT().isEmpty()) {
-            int lastIndex = checkExcIndices.size() - 1;
-            bytecode.set(checkExcIndices.get(lastIndex),
-                    new ErrorInstructions.CheckException(typeNames.get(lastIndex), reRaiseTarget));
-
+            for (int i = 0; i < checkIndices.size(); i++) {
+                bytecode.set(checkIndices.get(i), new ErrorInstructions.CheckException(typeNames.get(i), bodyStarts.get(i)));
+                int nextTarget = (i + 1 < checkIndices.size()) ? checkIndices.get(i + 1) : reRaiseTarget;
+                bytecode.set(nextCheckIndices.get(i), new ControlFlowInstructions.JumpAbsolute(nextTarget));
+            }
             bytecode.add(new ErrorInstructions.ReRaise());
         }
 
@@ -192,15 +200,52 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
         }
 
         bytecode.set(jumpToFinallyIndex, new ControlFlowInstructions.JumpAbsolute(finallyTarget));
-        int firstExceptTarget;
-        if (!checkExcIndices.isEmpty()) {
-            firstExceptTarget = checkExcIndices.getFirst();
-        } else {
-            firstExceptTarget = reRaiseTarget;
-        }
+        int firstExceptTarget = !checkIndices.isEmpty() ? checkIndices.getFirst() : reRaiseTarget;
 
         bytecode.set(setupIndex, new ErrorInstructions.SetupExcept(firstExceptTarget));
 
+        return bytecode;
+    }
+
+    @Override
+    public List<Instruction> visitDelStatement(MicroJParser.DelStatementContext ctx) {
+        for (var target : ctx.targetList().target()) {
+            if (target.NAME() != null && target.atom() == null)
+                bytecode.add(new StackInstructions.DeleteName(target.NAME().getText()));
+            else
+                return new Exceptions.PyRuntimeError("del with attr/subscript not supported yet").raise();
+        }
+        return bytecode;
+    }
+
+    @Override
+    public List<Instruction> visitAssertStatement(MicroJParser.AssertStatementContext ctx) {
+        visit(ctx.expr(0));
+        if (ctx.expr().size() > 1) visit(ctx.expr(1));
+        else bytecode.add(new StackInstructions.LoadConst(INDEX_NONE));
+        bytecode.add(new ErrorInstructions.Assert());
+        return bytecode;
+    }
+
+    @Override
+    public List<Instruction> visitGlobalStatement(MicroJParser.GlobalStatementContext ctx) {
+        for (var name : ctx.NAME())
+            bytecode.add(new StackInstructions.Global(name.getText()));
+        return bytecode;
+    }
+
+    @Override
+    public List<Instruction> visitNonlocalStatement(MicroJParser.NonlocalStatementContext ctx) {
+        for (var name : ctx.NAME())
+            bytecode.add(new StackInstructions.Nonlocal(name.getText()));
+        return bytecode;
+    }
+
+    @Override
+    public List<Instruction> visitYieldStatement(MicroJParser.YieldStatementContext ctx) {
+        if (ctx.expr() != null) visit(ctx.expr());
+        else bytecode.add(new StackInstructions.LoadConst(INDEX_NONE));
+        bytecode.add(new StackInstructions.Yield());
         return bytecode;
     }
 
@@ -248,9 +293,23 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
     @Override
     public List<Instruction> visitFuncDef(MicroJParser.FuncDefContext ctx) {
         List<String> params = new ArrayList<>();
+        List<String> defaultNames = new ArrayList<>();
+        String starArg = null;
+        String kwArg = null;
+
         if (ctx.paramList() != null) {
-            for (var p : ctx.paramList().NAME()) {
-                params.add(p.getText());
+            for (var p : ctx.paramList().param()) {
+                if (p.STAR() != null) {
+                    starArg = p.NAME().getText();
+                } else if (p.POW() != null) {
+                    kwArg = p.NAME().getText();
+                } else if (p.NAME() != null) {
+                    params.add(p.NAME().getText());
+                    if (p.EQUAL() != null) {
+                        visit(p.expr());
+                        defaultNames.add(p.NAME().getText());
+                    }
+                }
             }
         }
 
@@ -271,7 +330,19 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
         this.bytecode = mainBytecode;
         this.loopStack = mainLoopStack;
 
-        bytecode.add(new CallInstructions.MakeFunction(ctx.NAME().getText(), funcBody, params));
+        boolean isGenerator = funcBody.stream().anyMatch(inst -> inst instanceof StackInstructions.Yield);
+
+        if (isGenerator) {
+            int codeIdx = addConstant(new PyCode(funcBody));
+            bytecode.add(new CallInstructions.MakeGenerator(ctx.NAME().getText(), codeIdx, params));
+        } else {
+            if (!defaultNames.isEmpty()) {
+                bytecode.add(new BuilderInstructions.BuildTuple(defaultNames.size()));
+            } else {
+                bytecode.add(new StackInstructions.LoadConst(INDEX_NONE));
+            }
+            bytecode.add(new CallInstructions.MakeFunction(ctx.NAME().getText(), funcBody, params, starArg, kwArg));
+        }
 
         for (int i = ctx.decorator().size() - 1; i >= 0; i--) {
             var decCtx = ctx.decorator(i);
@@ -284,14 +355,61 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
     }
 
     @Override
+    public List<Instruction> visitLambda(MicroJParser.LambdaContext ctx) {
+        List<String> params = new ArrayList<>();
+        List<String> defaultNames = new ArrayList<>();
+        String starArg = null;
+        String kwArg = null;
+
+        if (ctx.paramList() != null) {
+            for (var p : ctx.paramList().param()) {
+                if (p.STAR() != null) starArg = p.NAME().getText();
+                else if (p.POW() != null) kwArg = p.NAME().getText();
+                else if (p.NAME() != null) {
+                    params.add(p.NAME().getText());
+                    if (p.EQUAL() != null) {
+                        visit(p.expr());
+                        defaultNames.add(p.NAME().getText());
+                    }
+                }
+            }
+        }
+
+        var mainBytecode = this.bytecode;
+        var mainLoopStack = this.loopStack;
+
+        this.bytecode = new ArrayList<>();
+        this.loopStack = new ArrayDeque<>();
+        visit(ctx.expr());
+
+        bytecode.add(new StackInstructions.ReturnValue());
+        List<Instruction> funcBody = this.bytecode;
+
+        this.bytecode = mainBytecode;
+        this.loopStack = mainLoopStack;
+        if (!defaultNames.isEmpty())
+            bytecode.add(new BuilderInstructions.BuildTuple(defaultNames.size()));
+        else bytecode.add(new StackInstructions.LoadConst(INDEX_NONE));
+        bytecode.add(new CallInstructions.MakeFunction("<lambda>", funcBody, params, starArg, kwArg));
+        return bytecode;
+    }
+
+    @Override
     public List<Instruction> visitClassDef(MicroJParser.ClassDefContext ctx) {
+        List<String> bases = new ArrayList<>();
+        if (ctx.baseList() != null) {
+            for (var b : ctx.baseList().NAME()) {
+                bases.add(b.getText());
+            }
+        }
+
         var mainBytecode = this.bytecode;
         var mainLoopStack = this.loopStack;
 
         this.bytecode = new ArrayList<>();
         this.loopStack = new ArrayDeque<>();
         visit(ctx.block());
-        bytecode.add(new BuilderInstructions.BuildClass(ctx.NAME(0).getText()));
+        bytecode.add(new BuilderInstructions.BuildClass(ctx.NAME().getText(), bases.toArray(new String[0])));
         bytecode.add(new StackInstructions.ReturnValue());
 
         List<Instruction> classBody = this.bytecode;
@@ -299,8 +417,8 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
         this.bytecode = mainBytecode;
         this.loopStack = mainLoopStack;
 
-        String funcName = ctx.NAME(0).getText();
-        bytecode.add(new CallInstructions.MakeFunction(funcName, classBody, java.util.List.of()));
+        String funcName = ctx.NAME().getText();
+        bytecode.add(new CallInstructions.MakeFunction(funcName, classBody, java.util.List.of(), null, null));
         bytecode.add(new CallInstructions.CallFunction(0, new String[0]));
         bytecode.add(new StackInstructions.StoreName(funcName));
         return bytecode;
@@ -478,6 +596,43 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
         return bytecode;
     }
 
+    @Override
+    public List<Instruction> visitWithStatement(MicroJParser.WithStatementContext ctx) {
+        visit(ctx.expr());
+        bytecode.add(new StackInstructions.StoreName("__with_mgr__"));
+        bytecode.add(new StackInstructions.LoadName("__with_mgr__"));
+        bytecode.add(new AttributeInstructions.GetAttr("__enter__"));
+        bytecode.add(new CallInstructions.CallFunction(0, new String[0]));
+        if (ctx.NAME() != null) {
+            bytecode.add(new StackInstructions.StoreName(ctx.NAME().getText()));
+        } else {
+            bytecode.add(new StackInstructions.PopTop());
+        }
+        int setupIndex = bytecode.size();
+        bytecode.add(null);
+        visit(ctx.block());
+        bytecode.add(new ErrorInstructions.PopTry());
+        int jumpToNormalExit = bytecode.size();
+        bytecode.add(null);
+        int exceptStart = bytecode.size();
+        bytecode.set(setupIndex, new ErrorInstructions.SetupExcept(exceptStart));
+        bytecode.add(new StackInstructions.StoreName("__with_exc__"));
+        bytecode.add(new StackInstructions.LoadName("__with_mgr__"));
+        bytecode.add(new AttributeInstructions.GetAttr("__exit__"));
+        bytecode.add(new CallInstructions.CallFunction(0, new String[0]));
+        bytecode.add(new StackInstructions.PopTop());
+        bytecode.add(new StackInstructions.LoadName("__with_exc__"));
+        bytecode.add(new ErrorInstructions.ReRaise());
+        int normalExit = bytecode.size();
+        bytecode.set(jumpToNormalExit, new ControlFlowInstructions.JumpAbsolute(normalExit));
+        bytecode.add(new StackInstructions.LoadName("__with_mgr__"));
+        bytecode.add(new AttributeInstructions.GetAttr("__exit__"));
+        bytecode.add(new CallInstructions.CallFunction(0, new String[0]));
+        bytecode.add(new StackInstructions.PopTop());
+
+        return bytecode;
+    }
+
     // ==================== ATOM ====================
 
     @Override
@@ -530,6 +685,121 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
             case "False" -> bytecode.add(new StackInstructions.LoadConst(INDEX_FALSE));
             default -> bytecode.add(new StackInstructions.LoadName(name));
         }
+        return bytecode;
+    }
+
+    @Override
+    public List<Instruction> visitDictComprehension(MicroJParser.DictComprehensionContext ctx) {
+        bytecode.add(new BuilderInstructions.BuildMap(0));
+        bytecode.add(new StackInstructions.StoreName("__tmp_dict__"));
+
+        visit(ctx.expr(2));
+        bytecode.add(new ControlFlowInstructions.GetIter());
+
+        int loopStart = bytecode.size();
+        int exitJump = bytecode.size();
+        bytecode.add(null);
+        var targets = ctx.targetList().target();
+        if (targets.size() == 1) visitTarget(targets.getFirst());
+        else visitTargetList(ctx.targetList());
+
+        List<Integer> condJumps = new ArrayList<>();
+        for (int i = 0; i < ctx.IF().size(); i++) {
+            visit(ctx.expr(i + 3));
+            condJumps.add(bytecode.size());
+            bytecode.add(null);
+        }
+
+        visit(ctx.expr(0));
+        visit(ctx.expr(1));
+
+        bytecode.add(new StackInstructions.LoadName("__tmp_dict__"));
+        bytecode.add(new AttributeInstructions.GetAttr("__setitem__"));
+        bytecode.add(new CallInstructions.CallFunction(2, new String[0]));
+        bytecode.add(new StackInstructions.PopTop());
+
+        bytecode.add(new ControlFlowInstructions.JumpAbsolute(loopStart));
+        int endLoop = bytecode.size();
+        bytecode.set(exitJump, new ControlFlowInstructions.ForIter(endLoop));
+        for (int condJump : condJumps)
+            bytecode.set(condJump, new ControlFlowInstructions.PopJumpIfFalse(loopStart));
+        bytecode.add(new StackInstructions.LoadName("__tmp_dict__"));
+        return bytecode;
+    }
+
+    @Override
+    public List<Instruction> visitSetComprehension(MicroJParser.SetComprehensionContext ctx) {
+        bytecode.add(new BuilderInstructions.BuildList(0));
+        bytecode.add(new StackInstructions.StoreName("__tmp_set__"));
+
+        visit(ctx.expr(1));
+        bytecode.add(new ControlFlowInstructions.GetIter());
+
+        int loopStart = bytecode.size();
+        int exitJump = bytecode.size();
+        bytecode.add(null);
+        var targets = ctx.targetList().target();
+        if (targets.size() == 1) visitTarget(targets.getFirst());
+        else visitTargetList(ctx.targetList());
+
+        List<Integer> condJumps = new ArrayList<>();
+        for (int i = 0; i < ctx.IF().size(); i++) {
+            visit(ctx.expr(i + 2));
+            condJumps.add(bytecode.size());
+            bytecode.add(null);
+        }
+
+        visit(ctx.expr(0));
+        bytecode.add(new StackInstructions.LoadName("__tmp_set__"));
+        bytecode.add(new AttributeInstructions.GetAttr("append"));
+        bytecode.add(new CallInstructions.CallFunction(1, new String[0]));
+        bytecode.add(new StackInstructions.PopTop());
+
+        bytecode.add(new ControlFlowInstructions.JumpAbsolute(loopStart));
+        int endLoop = bytecode.size();
+        bytecode.set(exitJump, new ControlFlowInstructions.ForIter(endLoop));
+        for (int condJump : condJumps) {
+            bytecode.set(condJump, new ControlFlowInstructions.PopJumpIfFalse(loopStart));
+        }
+        bytecode.add(new StackInstructions.LoadName("__tmp_set__"));
+        return bytecode;
+    }
+
+    @Override
+    public List<Instruction> visitGenExp(MicroJParser.GenExpContext ctx) {
+        bytecode.add(new BuilderInstructions.BuildList(0));
+        bytecode.add(new StackInstructions.StoreName("__tmp_gen__"));
+
+        visit(ctx.expr(1));
+        bytecode.add(new ControlFlowInstructions.GetIter());
+
+        int loopStart = bytecode.size();
+        int exitJump = bytecode.size();
+        bytecode.add(null);
+        var targets = ctx.targetList().target();
+        if (targets.size() == 1) visitTarget(targets.getFirst());
+        else visitTargetList(ctx.targetList());
+
+        List<Integer> condJumps = new ArrayList<>();
+        for (int i = 0; i < ctx.IF().size(); i++) {
+            visit(ctx.expr(i + 2));
+            condJumps.add(bytecode.size());
+            bytecode.add(null);
+        }
+
+        visit(ctx.expr(0));
+        bytecode.add(new StackInstructions.LoadName("__tmp_gen__"));
+        bytecode.add(new AttributeInstructions.GetAttr("append"));
+        bytecode.add(new CallInstructions.CallFunction(1, new String[0]));
+        bytecode.add(new StackInstructions.PopTop());
+
+        bytecode.add(new ControlFlowInstructions.JumpAbsolute(loopStart));
+        int endLoop = bytecode.size();
+        bytecode.set(exitJump, new ControlFlowInstructions.ForIter(endLoop));
+        for (int condJump : condJumps) {
+            bytecode.set(condJump, new ControlFlowInstructions.PopJumpIfFalse(loopStart));
+        }
+        bytecode.add(new StackInstructions.LoadName("__tmp_gen__"));
         return bytecode;
     }
 
@@ -650,6 +920,55 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
             bytecode.add(new BuilderInstructions.BuildTuple(size));
         }
         visitTarget(ctx.target());
+        return bytecode;
+    }
+
+    @Override
+    public List<Instruction> visitGeneralAssignList(MicroJParser.GeneralAssignListContext ctx) {
+        int size = ctx.exprList().expr().size();
+        for (var exprCtx : ctx.exprList().expr()) {
+            visit(exprCtx);
+        }
+        if (size > 1) {
+            bytecode.add(new BuilderInstructions.BuildTuple(size));
+        }
+        visitTargetList(ctx.targetList());
+        return bytecode;
+    }
+
+    @Override
+    public List<Instruction> visitListComprehension(MicroJParser.ListComprehensionContext ctx) {
+        bytecode.add(new BuilderInstructions.BuildList(0));
+        bytecode.add(new StackInstructions.StoreName("__tmp_list__"));
+        visit(ctx.expr(1));
+        bytecode.add(new ControlFlowInstructions.GetIter());
+
+        int loopStart = bytecode.size();
+        int exitJump = bytecode.size();
+        bytecode.add(null);
+        var targets = ctx.targetList().target();
+        if (targets.size() == 1) visitTarget(targets.getFirst());
+        else visitTargetList(ctx.targetList());
+
+        List<Integer> condJumps = new ArrayList<>();
+        for (int i = 0; i < ctx.IF().size(); i++) {
+            visit(ctx.expr(i + 2));
+            condJumps.add(bytecode.size());
+            bytecode.add(null);
+        }
+
+        visit(ctx.expr(0));
+        bytecode.add(new StackInstructions.LoadName("__tmp_list__"));
+        bytecode.add(new AttributeInstructions.GetAttr("append"));
+        bytecode.add(new CallInstructions.CallFunction(1, new String[0]));
+        bytecode.add(new StackInstructions.PopTop());
+        bytecode.add(new ControlFlowInstructions.JumpAbsolute(loopStart));
+        int endLoop = bytecode.size();
+        bytecode.set(exitJump, new ControlFlowInstructions.ForIter(endLoop));
+        for (int condJump : condJumps) {
+            bytecode.set(condJump, new ControlFlowInstructions.PopJumpIfFalse(loopStart));
+        }
+        bytecode.add(new StackInstructions.LoadName("__tmp_list__"));
         return bytecode;
     }
 

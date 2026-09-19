@@ -11,6 +11,7 @@ public class FrameTask {
     private final Consumer<PyObject> callback;
     private final Consumer<PyBaseException> onFailure;
 
+    private boolean yielded = false;
     private PyObject result = PyNone.INSTANCE;
 
     public FrameTask(Frame frame) {
@@ -34,7 +35,6 @@ public class FrameTask {
     public Consumer<PyObject> callback() {
         return callback;
     }
-
     public Consumer<PyBaseException> onFailure() {
         return onFailure;
     }
@@ -42,8 +42,10 @@ public class FrameTask {
     public PyObject result() {
         return result;
     }
-
     public void result(PyObject result) {
         this.result = result;
     }
+
+    public boolean yielded() { return yielded; }
+    public void yielded(boolean v) { this.yielded = v; }
 }

@@ -1,3 +1,6 @@
-a = 1
-b = 2
-c = a + b
+def gen():
+    yield 1
+    yield 2
+
+for x in gen():
+    print(x)

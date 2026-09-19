@@ -4,19 +4,40 @@ tokens { INDENT, DEDENT }
 
 file: (NEWLINE | statement)* EOF;
 
-statement: simpleStatement | ifStatement | whileStatement | funcDef | forStatement | importStatement | tryStatement | classDef;
+statement: simpleStatement
+    | ifStatement
+    | whileStatement
+    | funcDef
+    | forStatement
+    | importStatement
+    | tryStatement
+    | classDef
+    | withStatement
+    | delStatement
+    | assertStatement
+    | globalStatement
+    | nonlocalStatement
+    | yieldStatement
+    ;
+
 simpleStatement:
     (assignment
     | expr
     | returnStatement
     | breakStatement
-    | continueStatement) NEWLINE;
+    | continueStatement
+    | PASS) NEWLINE;
 
 funcDef: decorator* DEF NAME LPAREN paramList? RPAREN COLON NEWLINE block;
-classDef: CLASS NAME (LPAREN NAME RPAREN)? COLON NEWLINE block;
+classDef: CLASS NAME (LPAREN baseList? RPAREN)? COLON NEWLINE block;
+baseList: NAME (COMMA NAME)* ;
 decorator: AT expr NEWLINE;
-paramList: NAME (COMMA NAME)*;
+paramList: param (COMMA param)* ;
+param: NAME (EQUAL expr)? | STAR NAME | POW NAME ;
 returnStatement: RETURN exprList?;
+globalStatement: GLOBAL NAME (COMMA NAME)* NEWLINE;
+nonlocalStatement: NONLOCAL NAME (COMMA NAME)* NEWLINE;
+yieldStatement: YIELD expr? NEWLINE;
 breakStatement: BREAK;
 continueStatement: CONTINUE;
 
@@ -25,6 +46,9 @@ tryStatement: TRY COLON NEWLINE block
              (ELSE COLON NEWLINE block)?
              (FINALLY COLON NEWLINE block)?;
 
+withStatement: WITH expr (AS NAME)? COLON NEWLINE block;
+delStatement: DEL targetList NEWLINE;
+assertStatement: ASSERT expr (COMMA expr)? NEWLINE;
 exceptClause: NAME (AS NAME)? | AS NAME;
 
 ifStatement: IF expr COLON NEWLINE block
@@ -38,6 +62,7 @@ assignment
     : atom LBRACKET expr RBRACKET EQUAL expr # SubscriptAssign
     | atom DOT NAME EQUAL expr               # AttrAssign
     | target EQUAL exprList                  # GeneralAssign
+    | targetList EQUAL exprList              # GeneralAssignList
     ;
 
 expr: or_expr;
@@ -64,12 +89,17 @@ target: NAME
 
 targetList: target (COMMA target)* ;
 
-atom: NUMBER          # Number
+atom: LAMBDA (paramList)? COLON expr # Lambda
+    | NUMBER          # Number
     | FLOAT           # FloatLiteral
     | IMAG            # ImagLiteral
     | STRING          # StringLiteral
     | NAME            # Variable
     | LPAREN expr (COMMA expr)* COMMA? RPAREN # TupleLiteral
+    | LBRACKET expr FOR targetList IN expr (IF expr)* RBRACKET # ListComprehension
+    | LBRACE expr COLON expr FOR targetList IN expr (IF expr)* RBRACE # DictComprehension
+    | LBRACE expr FOR targetList IN expr (IF expr)* RBRACE # SetComprehension
+    | LPAREN expr FOR targetList IN expr (IF expr)* RPAREN # GenExp
     | LBRACKET exprList? RBRACKET # ListLiteral
     | LBRACE dictList? RBRACE   # DictLiteral
     | atom LBRACKET expr RBRACKET # SubscriptAtom
@@ -102,6 +132,7 @@ ELIF: 'elif';
 ELSE: 'else';
 WHILE: 'while';
 DEF: 'def';
+LAMBDA: 'lambda';
 RETURN: 'return';
 IMPORT: 'import';
 FROM: 'from';
@@ -111,7 +142,13 @@ CONTINUE: 'continue';
 TRY: 'try';
 EXCEPT: 'except';
 FINALLY: 'finally';
-AT: '@';
+PASS: 'pass';
+WITH: 'with';
+DEL: 'del';
+ASSERT: 'assert';
+GLOBAL: 'global';
+NONLOCAL: 'nonlocal';
+YIELD: 'yield';
 
 AND: 'and';
 OR: 'or';
@@ -124,6 +161,7 @@ RBRACKET: ']';
 LBRACE: '{';
 RBRACE: '}';
 
+AT: '@';
 PLUS: '+';
 MINUS: '-';
 STAR: '*';

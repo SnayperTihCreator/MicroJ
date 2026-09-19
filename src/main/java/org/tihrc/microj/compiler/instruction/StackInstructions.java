@@ -1,6 +1,7 @@
 package org.tihrc.microj.compiler.instruction;
 
 import org.tihrc.microj.compiler.Instruction;
+import org.tihrc.microj.types.primitives.PyNone;
 import org.tihrc.microj.units.Frame;
 import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.RuntimeExecuter;
@@ -48,12 +49,29 @@ public class StackInstructions {
             return true;
         }
     }
+
+    public record DeleteName(String name) implements Instruction {
+        public boolean execute(Frame f, RuntimeExecuter vm) {
+            f.locals.remove(name);
+            return true;
+        }
+    }
+
+    public record Global(String name) implements Instruction {
+        public boolean execute(Frame f, RuntimeExecuter vm) { return true; }
+    }
+
+    public record Nonlocal(String name) implements Instruction {
+        public boolean execute(Frame f, RuntimeExecuter vm) { return true; }
+    }
+
     public record PopTop() implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter vm) {
             f.stack.pop();
             return true;
         }
     }
+
     public record ReturnValue() implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter vm) {
             PyObject retVal = f.stack.pop();
@@ -63,6 +81,16 @@ public class StackInstructions {
             if (task.callback() != null) task.callback().accept(retVal);
             else if (!vm.isEmpty()) vm.getCurrentFrame().stack.push(retVal);
             return false;
+        }
+    }
+
+    public record Yield() implements Instruction {
+        public boolean execute(Frame f, RuntimeExecuter vm) {
+            PyObject val = f.stack.isEmpty() ? PyNone.INSTANCE : f.stack.pop();
+            FrameTask task = vm.getCurrentTask();
+            task.result(val);
+            task.yielded(true);
+            return true;
         }
     }
 }

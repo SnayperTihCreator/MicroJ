@@ -97,6 +97,10 @@ public class PyTuple extends PyObject implements Protocols.PyContainer, Protocol
         }
     }
 
+    public PyObject[] getInner(){
+        return items;
+    }
+
     @Override
     @PyExport(name = "__iter__")
     public Protocols.PyIterator pyDanderIter() {

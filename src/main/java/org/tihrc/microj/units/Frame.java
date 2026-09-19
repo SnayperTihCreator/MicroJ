@@ -8,18 +8,19 @@ import java.util.*;
 import java.util.function.Consumer;
 
 public class Frame {
-    public final List<Instruction> code;
+    public List<Instruction> code;
     public int pc = 0;
 
-    public final FastStack stack = new FastStack(8);
+    public FastStack stack = new FastStack(8);
     public Map<String, PyObject> locals = new FastMap<>();
     public Map<String, PyObject> closure = null;
-    public final Deque<int[]> tryHandlers = new ArrayDeque<>();
-    public final PyObject[] constants;
+    public Deque<int[]> tryHandlers = null;
+    public PyObject[] constants;
 
     private static final PyObject[] NO_CONSTANTS = new PyObject[0];
 
     public void pushTryHandler(int target, int prevPc) {
+        if (tryHandlers == null) tryHandlers = new ArrayDeque<>();
         tryHandlers.push(new int[]{target, prevPc});
     }
 
@@ -47,6 +48,26 @@ public class Frame {
         Frame frame = new Frame(code, constants);
         frame.locals = globals;
         return frame;
+    }
+
+    public void reset(List<Instruction> code, PyObject[] constants, Map<String, PyObject> closure) {
+        this.code = code;
+        this.constants = constants;
+        this.closure = closure;
+        this.pc = 0;
+        this.stack.clear();
+        this.locals.clear();
+        if (this.tryHandlers != null) this.tryHandlers.clear();
+    }
+
+    public void clean() {
+        this.code = null;
+        this.constants = null;
+        this.closure = null;
+        this.pc = 0;
+        this.stack.clear();
+        this.locals.clear();
+        if (this.tryHandlers != null) this.tryHandlers.clear();
     }
 
     public FrameTask createTask() {

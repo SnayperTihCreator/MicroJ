@@ -44,7 +44,9 @@ public class PyRange extends PyObject implements Protocols.PyIterable, Protocols
                     return new Exceptions.PyStopIteration().raise();
             }
 
-            return PyInt.from(current += step) /* тут аккуратно */;
+            int val = current;
+            current += step;
+            return PyInt.from(val);
         }
 
         @Override

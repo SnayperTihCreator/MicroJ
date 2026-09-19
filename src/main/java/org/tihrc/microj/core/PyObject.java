@@ -2,6 +2,7 @@ package org.tihrc.microj.core;
 
 import org.tihrc.microj.core.transforms.PyExport;
 import org.tihrc.microj.core.transforms.PyTypeExporter;
+import org.tihrc.microj.types.PyBoundMethod;
 import org.tihrc.microj.types.collections.PyString;
 import org.tihrc.microj.types.primitives.PyBool;
 import org.tihrc.microj.units.FastMap;
@@ -45,7 +46,10 @@ public abstract class PyObject {
     }
 
     public PyObject findAttribute(String name) {
-        return PyTypeExporter.findExported(this, name);
+        PyObject attr = PyTypeExporter.findExported(this, name);
+        if (attr instanceof Protocols.PyCallable)
+            return new PyBoundMethod(this, attr);
+        return attr;
     }
 
     @Override
@@ -56,6 +60,8 @@ public abstract class PyObject {
         }
         return super.equals(obj);
     }
+
+    public void setAttribute(String name, PyObject value) {}
 
     @Override
     public int hashCode() {

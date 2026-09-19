@@ -5,6 +5,8 @@ import org.tihrc.microj.core.*;
 import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.core.transforms.PyMethodProxy;
 import org.tihrc.microj.types.*;
+import org.tihrc.microj.types.collections.PyGenerator;
+import org.tihrc.microj.types.collections.PyGeneratorFunc;
 import org.tihrc.microj.units.Frame;
 
 import java.util.Arrays;
@@ -14,9 +16,17 @@ public class CallInstructions {
     private static final PyObject[] NO_ARGS = new PyObject[0];
     private static final String[] NO_KW_NAMES = new String[0];
 
-    public record MakeFunction(String name, List<Instruction> body, List<String> params) implements Instruction {
+    public record MakeFunction(String name, List<Instruction> body, List<String> params, String starArg, String kwArg) implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter vm) {
             f.stack.push(new PyFunction(name, body, params, f.locals, f.constants));
+            return true;
+        }
+    }
+
+    public record MakeGenerator(String name, int codeIndex, List<String> params) implements Instruction {
+        public boolean execute(Frame f, RuntimeExecuter vm) {
+            PyCode code = (PyCode) f.constants[codeIndex];
+            f.stack.push(new PyGeneratorFunc(name, code.body, params, f.constants));
             return true;
         }
     }

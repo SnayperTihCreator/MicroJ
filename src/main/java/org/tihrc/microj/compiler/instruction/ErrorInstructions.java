@@ -1,9 +1,13 @@
 package org.tihrc.microj.compiler.instruction;
 
 import org.tihrc.microj.compiler.Instruction;
+import org.tihrc.microj.core.Protocols;
+import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.RuntimeExecuter;
+import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.core.exceptions.PyBaseException;
 import org.tihrc.microj.core.exceptions.PyUnwind;
+import org.tihrc.microj.types.primitives.PyNone;
 import org.tihrc.microj.units.Frame;
 
 public class ErrorInstructions {
@@ -38,6 +42,21 @@ public class ErrorInstructions {
         public boolean execute(Frame f, RuntimeExecuter vm) {
             PyBaseException exc = (PyBaseException) f.stack.pop();
             throw new PyUnwind(exc);
+        }
+    }
+
+    public record Assert() implements Instruction {
+        public boolean execute(Frame f, RuntimeExecuter vm) {
+            PyObject msg = f.stack.pop();
+            PyObject cond = f.stack.pop();
+            boolean truthy = false;
+            if (cond instanceof Protocols.PyComparable cmp) truthy = cmp.pyDanderBool();
+
+            if (!truthy) {
+                String msgStr = (msg == PyNone.INSTANCE) ? "assertion failed" : msg.toString();
+                new Exceptions.PyAssertionError(msgStr).raise();
+            }
+            return true;
         }
     }
 }

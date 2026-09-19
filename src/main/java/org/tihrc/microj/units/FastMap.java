@@ -19,7 +19,7 @@ public class FastMap<V> implements Map<String, V> {
 
     @SuppressWarnings("unchecked")
     public FastMap(){
-        this.capacity = 16;
+        this.capacity = 4;
         this.keys = new String[this.capacity];
         this.values = (V[])new Object[this.capacity];
     }
@@ -47,7 +47,6 @@ public class FastMap<V> implements Map<String, V> {
 
     @Override
     public V put(String key, V value) {
-        // Защита синглтона EMPTY от изменения!
         if (this == EMPTY) {
             throw new UnsupportedOperationException("Cannot modify empty FastMap");
         }
@@ -57,7 +56,7 @@ public class FastMap<V> implements Map<String, V> {
             if (keys[i].equals(key)) {
                 V old = values[i];
                 values[i] = value;
-                return old; // В интерфейсе Map.put нужно возвращать старое значение
+                return old;
             }
             i = (i + 1) & (capacity - 1);
         }
@@ -107,7 +106,7 @@ public class FastMap<V> implements Map<String, V> {
     public boolean containsValue(Object value) {
         for (int i = 0; i < capacity; i++) {
             if (keys[i] != null) {
-                if (values[i] == value || (values[i] != null && values[i].equals(value))) {
+                if (Objects.equals(values[i], value)) {
                     return true;
                 }
             }
@@ -118,9 +117,8 @@ public class FastMap<V> implements Map<String, V> {
     @Override
     public V remove(Object key) {
         if (this == EMPTY) throw new UnsupportedOperationException("Cannot modify empty FastMap");
-        if (!(key instanceof String)) return null;
+        if (!(key instanceof String k)) return null;
 
-        String k = (String) key;
         int i = hash(k);
         while (keys[i] != null) {
             if (keys[i].equals(k)) {
@@ -158,7 +156,6 @@ public class FastMap<V> implements Map<String, V> {
     public void clear() {
         if (this == EMPTY) return;
         Arrays.fill(keys, null);
-        Arrays.fill(values, null);
         size = 0;
     }
 

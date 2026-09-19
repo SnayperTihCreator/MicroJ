@@ -41,6 +41,12 @@ public interface MicroJVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitClassDef(MicroJParser.ClassDefContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link MicroJParser#baseList}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitBaseList(MicroJParser.BaseListContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link MicroJParser#decorator}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -53,11 +59,35 @@ public interface MicroJVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitParamList(MicroJParser.ParamListContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link MicroJParser#param}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitParam(MicroJParser.ParamContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link MicroJParser#returnStatement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitReturnStatement(MicroJParser.ReturnStatementContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link MicroJParser#globalStatement}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitGlobalStatement(MicroJParser.GlobalStatementContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link MicroJParser#nonlocalStatement}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitNonlocalStatement(MicroJParser.NonlocalStatementContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link MicroJParser#yieldStatement}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitYieldStatement(MicroJParser.YieldStatementContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link MicroJParser#breakStatement}.
 	 * @param ctx the parse tree
@@ -76,6 +106,24 @@ public interface MicroJVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitTryStatement(MicroJParser.TryStatementContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link MicroJParser#withStatement}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitWithStatement(MicroJParser.WithStatementContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link MicroJParser#delStatement}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitDelStatement(MicroJParser.DelStatementContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link MicroJParser#assertStatement}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitAssertStatement(MicroJParser.AssertStatementContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link MicroJParser#exceptClause}.
 	 * @param ctx the parse tree
@@ -127,6 +175,13 @@ public interface MicroJVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitGeneralAssign(MicroJParser.GeneralAssignContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code GeneralAssignList}
+	 * labeled alternative in {@link MicroJParser#assignment}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitGeneralAssignList(MicroJParser.GeneralAssignListContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link MicroJParser#expr}.
 	 * @param ctx the parse tree
@@ -212,12 +267,12 @@ public interface MicroJVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitTargetList(MicroJParser.TargetListContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code ListLiteral}
+	 * Visit a parse tree produced by the {@code SetComprehension}
 	 * labeled alternative in {@link MicroJParser#atom}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitListLiteral(MicroJParser.ListLiteralContext ctx);
+	T visitSetComprehension(MicroJParser.SetComprehensionContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code Variable}
 	 * labeled alternative in {@link MicroJParser#atom}.
@@ -225,6 +280,41 @@ public interface MicroJVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitVariable(MicroJParser.VariableContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code FloatLiteral}
+	 * labeled alternative in {@link MicroJParser#atom}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFloatLiteral(MicroJParser.FloatLiteralContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code GenExp}
+	 * labeled alternative in {@link MicroJParser#atom}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitGenExp(MicroJParser.GenExpContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code CallAtom}
+	 * labeled alternative in {@link MicroJParser#atom}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitCallAtom(MicroJParser.CallAtomContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code DictLiteral}
+	 * labeled alternative in {@link MicroJParser#atom}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitDictLiteral(MicroJParser.DictLiteralContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code ListLiteral}
+	 * labeled alternative in {@link MicroJParser#atom}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitListLiteral(MicroJParser.ListLiteralContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code Number}
 	 * labeled alternative in {@link MicroJParser#atom}.
@@ -240,13 +330,6 @@ public interface MicroJVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitStringLiteral(MicroJParser.StringLiteralContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code FloatLiteral}
-	 * labeled alternative in {@link MicroJParser#atom}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitFloatLiteral(MicroJParser.FloatLiteralContext ctx);
-	/**
 	 * Visit a parse tree produced by the {@code TupleLiteral}
 	 * labeled alternative in {@link MicroJParser#atom}.
 	 * @param ctx the parse tree
@@ -261,19 +344,33 @@ public interface MicroJVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitGetAttrAtom(MicroJParser.GetAttrAtomContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code CallAtom}
-	 * labeled alternative in {@link MicroJParser#atom}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitCallAtom(MicroJParser.CallAtomContext ctx);
-	/**
 	 * Visit a parse tree produced by the {@code ParenAtom}
 	 * labeled alternative in {@link MicroJParser#atom}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitParenAtom(MicroJParser.ParenAtomContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code DictComprehension}
+	 * labeled alternative in {@link MicroJParser#atom}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitDictComprehension(MicroJParser.DictComprehensionContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code ListComprehension}
+	 * labeled alternative in {@link MicroJParser#atom}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitListComprehension(MicroJParser.ListComprehensionContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code Lambda}
+	 * labeled alternative in {@link MicroJParser#atom}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitLambda(MicroJParser.LambdaContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code SubscriptAtom}
 	 * labeled alternative in {@link MicroJParser#atom}.
@@ -288,13 +385,6 @@ public interface MicroJVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitImagLiteral(MicroJParser.ImagLiteralContext ctx);
-	/**
-	 * Visit a parse tree produced by the {@code DictLiteral}
-	 * labeled alternative in {@link MicroJParser#atom}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitDictLiteral(MicroJParser.DictLiteralContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link MicroJParser#exprList}.
 	 * @param ctx the parse tree

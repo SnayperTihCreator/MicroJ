@@ -70,7 +70,7 @@ public class RuntimeLibrary {
 
         private static final Map<String, PyObject> attributes = new FastMap<>();
         static {
-            attributes.put("get", new PyBuiltinFunction((ctx, kwargs, args) -> {
+            attributes.put("get", new PyBuiltinFunction((PyBuiltinFunction.CallVarArgs) (ctx, args) -> {
                 SysModulesProxy self = Transforms.check(args[0], SysModulesProxy.class);
                 PyObject key = args[1];
                 PyObject def = args.length > 2 ? args[2] : PyNone.INSTANCE;
@@ -83,7 +83,7 @@ public class RuntimeLibrary {
                 return def;
             }));
 
-            attributes.put("keys", new PyBuiltinFunction((ctx, kwargs, args) -> {
+            attributes.put("keys", new PyBuiltinFunction((PyBuiltinFunction.CallVarArgs) (ctx, args) -> {
                 SysModulesProxy self = Transforms.check(args[0], SysModulesProxy.class);
                 List<PyObject> allKeys = new ArrayList<>(self.map.keySet());
                 for (var entry : self.builtins.entrySet()) {

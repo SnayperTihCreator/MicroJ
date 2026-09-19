@@ -1,6 +1,7 @@
 package org.tihrc.microj.types;
 
 import org.tihrc.microj.core.Capability;
+import org.tihrc.microj.core.Protocols;
 import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.transforms.PyExport;
 import org.tihrc.microj.units.FastMap;
@@ -22,8 +23,11 @@ public class PyInstance extends PyObject {
     @Override
     public PyObject findAttribute(String name) {
         PyObject attr = attrs.get(name);
-        if (attr == null) attr = pyClass.attrs.get(name);
+        if (attr == null) attr = pyClass.findAttribute(name);
         if (attr == null) attr = super.findAttribute(name);
+
+        if (attr instanceof Protocols.PyCallable && !(attr instanceof PyBoundMethod))
+            return new PyBoundMethod(this, attr);
         return attr;
     }
 

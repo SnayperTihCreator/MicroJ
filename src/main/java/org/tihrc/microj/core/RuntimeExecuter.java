@@ -15,6 +15,7 @@ public class RuntimeExecuter {
     private final Interpreter interpreter;
     private final Map<String, PyObject> globals = new FastMap<>();
     private final Deque<FrameTask> frameTasks = new ArrayDeque<>();
+    private final Deque<Frame> framePool = new ArrayDeque<>();
 
     public RuntimeExecuter(Interpreter interpreter){
         this.interpreter = interpreter;
@@ -36,14 +37,24 @@ public class RuntimeExecuter {
     public Frame getCurrentFrame() { return frameTasks.peek().frame(); }
     public boolean isEmpty() { return frameTasks.isEmpty(); }
 
-    public PyObject run(InstructionGenerator.CompiledScript script){
+    public Frame obtainFrame(List<Instruction> code, PyObject[] constants, Map<String, PyObject> closure) {
+        Frame frame = framePool.pollFirst();
+        if (frame == null) {
+            frame = new Frame(code, constants);
+            frame.closure = closure;
+        } else {
+            frame.reset(code, constants, closure);
+        }
+        return frame;
+    }
+
+    public PyObject run(InstructionGenerator.CompiledScript script) {
         pushTask(Frame.fromGlobals(script.code(), globals, script.constants()).createTask());
         try {
             executeTasks(0);
         } catch (PyUnwind e) {
             return raised(e.exception);
         }
-
         return PyNone.INSTANCE;
     }
 
@@ -98,13 +109,16 @@ public class RuntimeExecuter {
             FrameTask task = frameTasks.peek();
             Frame frame = task.frame();
 
-            if (frame.isFinished()) {
+            if (frame.isFinished() || task.yielded()) {
                 popTask();
-                if (task.callback() != null) {
-                    task.callback().accept(PyNone.INSTANCE);
-                } else if (!isEmpty()) {
-                    getCurrentFrame().stack.push(PyNone.INSTANCE);
+                if (task.yielded()) {
+                    continue;
                 }
+                if (task.callback() != null) task.callback().accept(PyNone.INSTANCE);
+                else if (!isEmpty()) getCurrentFrame().stack.push(PyNone.INSTANCE);
+
+                frame.clean();
+                framePool.offerFirst(frame);
                 continue;
             }
 
@@ -122,7 +136,7 @@ public class RuntimeExecuter {
                     throw e;
                 }
 
-                if (!frame.tryHandlers.isEmpty()) {
+                if (frame.tryHandlers != null && !frame.tryHandlers.isEmpty()) {
                     int[] handler = frame.tryHandlers.pop();
                     frame.stack.clear();
                     frame.stack.push(pyExc);

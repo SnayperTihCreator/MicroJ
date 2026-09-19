@@ -20,6 +20,14 @@ public class PyBoundMethod extends PyObject implements Protocols.PyCallable {
         return callBound(ctx, kwargs, args);
     }
 
+    @Override
+    public PyObject pyDanderCallFast(RuntimeExecuter ctx, PyObject[] args, String[] kwNames, PyObject[] kwValues) {
+        PyObject[] fullArgs = new PyObject[args.length + 1];
+        fullArgs[0] = this.self;
+        System.arraycopy(args, 0, fullArgs, 1, args.length);
+        return ((Protocols.PyCallable) func).pyDanderCallFast(ctx, fullArgs, kwNames, kwValues);
+    }
+
     public PyObject callBound(RuntimeExecuter ctx, Map<String, PyObject> kwargs, PyObject[] args) {
         Protocols.PyCallable callable = (Protocols.PyCallable) func;
         return callable.pyDanderCallBound(ctx, self, kwargs, args);
