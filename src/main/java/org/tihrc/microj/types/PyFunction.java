@@ -1,6 +1,8 @@
 package org.tihrc.microj.types;
 
+import org.tihrc.microj.backend.jvm.JvmCompiler;
 import org.tihrc.microj.compiler.Instruction;
+import org.tihrc.microj.compiler.instruction.CallInstructions;
 import org.tihrc.microj.core.Protocols;
 import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.RuntimeExecuter;
@@ -20,16 +22,66 @@ public class PyFunction extends PyObject implements Protocols.PyCallable {
     public final List<Instruction> body;
     public final List<String> params;
     public final Set<String> paramNames;
+    public final String starArg;
+    public final String kwArg;
     public final Map<String, PyObject> closure;
+    public final PyObject defaults;
     public final PyObject[] constants;
 
-    public PyFunction(String name, List<Instruction> body, List<String> params,  Map<String, PyObject> closure, PyObject[] constants) {
+    public PyFunction(String name, List<Instruction> body, List<String> params,
+                      String starArg, String kwArg,
+                      Map<String, PyObject> closure, PyObject defaults, PyObject[] constants) {
         this.name = name;
         this.body = body;
         this.params = params;
+        this.starArg = starArg;
+        this.kwArg = kwArg;
         this.paramNames = Set.copyOf(params);
         this.closure = closure;
+        this.defaults = defaults;
         this.constants = constants;
+    }
+
+    public PyFunction(String name, List<Instruction> body, List<String> params,  Map<String, PyObject> closure, PyObject[] constants) {
+        this(name, body, params, null, null, closure, PyNone.INSTANCE, constants);
+    }
+
+    private Frame bindFrame(RuntimeExecuter ctx, PyObject[] args, String[] kwNames, PyObject[] kwValues) {
+        Frame frame = ctx.obtainFrame(body, constants, closure);
+
+        if (kwNames != null && kwArg == null) {
+            for (String kw : kwNames) {
+                if (!paramNames.contains(kw))
+                    new Exceptions.PyTypeError(
+                            name + "() got an unexpected keyword argument '" + kw + "'").raise();
+            }
+        }
+        if (args == null) args = CallInstructions.NO_ARGS;
+
+        PyObject[] slots = new PyObject[params.size() + (starArg != null ? 1 : 0) + (kwArg != null ? 1 : 0)];
+        JvmCompiler.bindArgs(ctx, slots, defaults, args, kwNames, kwValues,
+                params.toArray(String[]::new), starArg, kwArg);
+
+        for (int i = 0; i < params.size(); i++) frame.locals.put(params.get(i), slots[i]);
+        int idx = params.size();
+        if (starArg != null) frame.locals.put(starArg, slots[idx++]);
+        if (kwArg != null)   frame.locals.put(kwArg,   slots[idx]);
+        return frame;
+    }
+
+    private static String[] kwNamesOf(Map<String, PyObject> kwargs) {
+        if (kwargs == null || kwargs.isEmpty()) return CallInstructions.NO_KW_NAMES;
+        String[] names = new String[kwargs.size()];
+        int i = 0;
+        for (var e : kwargs.entrySet()) names[i++] = e.getKey();
+        return names;
+    }
+    private static PyObject[] kwValuesOf(Map<String, PyObject> kwargs) {
+        if (kwargs == null || kwargs.isEmpty()) return CallInstructions.NO_KW_VALUES;
+        PyObject[] vals = new PyObject[kwargs.size()];
+        int i = 0;
+        for (var e : kwargs.entrySet()) vals[i++] = e.getValue();
+        return vals;
     }
 
     public Frame createClosure() {
@@ -58,51 +110,36 @@ public class PyFunction extends PyObject implements Protocols.PyCallable {
 
     @Override
     public void pyDanderCall(RuntimeExecuter ctx, Consumer<PyObject> callback, PyObject[] args, Map<String, PyObject> kwargs) {
-        Frame frame = prepareFrame(ctx, args, kwargs);
-        ctx.pushTask(frame.createTask(callback));
+        ctx.pushTask(bindFrame(ctx, args, kwNamesOf(kwargs), kwValuesOf(kwargs)).createTask(callback));
     }
 
     @Override
     public PyObject pyDanderCallFast(RuntimeExecuter ctx, PyObject[] args, String[] kwNames, PyObject[] kwValues) {
-        Frame frame = prepareFrameFast(ctx, args, kwNames, kwValues);
-        return ctx.runFrameSync(frame);
+        return ctx.runFrameSync(bindFrame(ctx, args, kwNames, kwValues));
     }
 
     @Override
     public PyObject pyDanderCallFast(RuntimeExecuter ctx) {
-        return ctx.runFrameSync(createClosure());
+        return ctx.runFrameSync(bindFrame(ctx, CallInstructions.NO_ARGS, CallInstructions.NO_KW_NAMES, CallInstructions.NO_KW_VALUES));
     }
 
     @Override
     public PyObject pyDanderCallBoundFast(RuntimeExecuter ctx, PyObject self, PyObject[] args, String[] kwNames, PyObject[] kwValues) {
-        Frame frame = createClosure();
+        PyObject[] combined = new PyObject[(args == null ? 0 : args.length) + 1];
+        combined[0] = self;
+        if (args != null) System.arraycopy(args, 0, combined, 1, args.length);
+        return ctx.runFrameSync(bindFrame(ctx, combined, kwNames, kwValues));
+    }
 
-        if (!params.isEmpty()) {
-            frame.locals.put(params.getFirst(), self);
-        }
-
-        for (int i = 0; i < args.length; i++) {
-            int paramIndex = i + 1;
-
-            if (paramIndex < params.size()) {
-                frame.locals.put(params.get(paramIndex), args[i]);
-            }
-        }
-        if (kwNames != null) {
-            for (int i = 0; i < kwNames.length; i++) {
-                String name = kwNames[i];
-
-                if (!paramNames.contains(name)) {
-                    return new Exceptions.PyTypeError(
-                            "unexpected keyword argument '" + name + "'"
-                    ).raise();
-                }
-
-                frame.locals.put(name, kwValues[i]);
-            }
-        }
-        return ctx.runFrameSync(frame);
-
+    @Override
+    @PyExport(name = "__call__")
+    public PyObject pyDanderCall(RuntimeExecuter ctx, Map<String, PyObject> kwargs, PyObject... args) {
+        Frame frame = bindFrame(ctx, args, kwNamesOf(kwargs), kwValuesOf(kwargs));
+        int targetSize = ctx.getSizeTasks();
+        FrameTask task = frame.createTask();
+        ctx.pushTask(task);
+        ctx.runUntil(targetSize);
+        return task.result();
     }
 
     private Frame prepareFrameFast(RuntimeExecuter ctx, PyObject[] args, String[] kwNames, PyObject[] kwValues) {
@@ -134,18 +171,6 @@ public class PyFunction extends PyObject implements Protocols.PyCallable {
         }
 
         return frame;
-    }
-
-    @Override
-    @PyExport(name = "__call__")
-    public PyObject pyDanderCall(RuntimeExecuter ctx, Map<String, PyObject> kwargs, PyObject... args) {
-        Frame newFrame = prepareFrame(ctx, args, kwargs);
-
-        int targetSize = ctx.getSizeTasks();
-        FrameTask task = newFrame.createTask();
-        ctx.pushTask(task);
-        ctx.runUntil(targetSize);
-        return task.result();
     }
 
     @Override

@@ -1,5 +1,6 @@
 package org.tihrc.microj.core;
 
+import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.core.transforms.PyExport;
 import org.tihrc.microj.core.transforms.PyTypeExporter;
 import org.tihrc.microj.types.PyBoundMethod;
@@ -17,8 +18,13 @@ public abstract class PyObject {
     public String pyDanderRepr() { return "<%s object>".formatted(this.getClass().getSimpleName()); }
     @PyExport(name="__str__")
     public String pyDanderStr() { return this.pyDanderRepr();}
-    @PyExport(name="__format__")
-    public PyObject pyDanderFormat(PyObject spec) { return new PyString(this.toString()); }
+    @PyExport(name = "__format__")
+    public PyObject pyDanderFormat(String spec) {
+        if (spec == null || spec.isEmpty()) {
+            return new PyString(this.pyDanderStr());
+        }
+        return new Exceptions.PyTypeError("unsupported format string passed to " + this.getClass().getSimpleName() + ".__format__").raise();
+    }
     @PyExport(name="__hash__")
     public int pyDanderHash() { return System.identityHashCode(this); }
     @PyExport(name="__doc__")

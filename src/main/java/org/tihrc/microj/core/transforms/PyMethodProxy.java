@@ -6,6 +6,7 @@ import org.tihrc.microj.core.RuntimeExecuter;
 import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.core.exceptions.PyUnwind;
 import org.tihrc.microj.types.primitives.PyNone;
+import org.tihrc.microj.units.FastMap;
 
 import java.lang.invoke.MethodHandle;
 import java.util.ArrayList;
@@ -18,18 +19,44 @@ public class PyMethodProxy extends PyObject implements Protocols.PyCallable {
     private final int paramCount;
     private final Class<?>[] paramTypes;
     private final String name;
+    private final boolean useArgs;
+    private final boolean useKwargs;
 
-    public PyMethodProxy(MethodHandle handle, Object fastProxy, int paramCount, Class<?>[] paramTypes, String name) {
+    public PyMethodProxy(MethodHandle handle, Object fastProxy, int paramCount, Class<?>[] paramTypes, String name, boolean useArgs, boolean useKwargs) {
         this.handle = handle;
         this.fastProxy = fastProxy;
         this.paramCount = paramCount;
         this.paramTypes = paramTypes;
         this.name = name;
+        this.useArgs = useArgs;
+        this.useKwargs = useKwargs;
+    }
+
+    private PyObject invokeRaw(Object self, PyObject[] posArgs, Map<String, PyObject> kwargs) {
+        try {
+            if (useArgs && useKwargs) {
+                return Transforms.toPython(handle.invoke(self, posArgs, kwargs == null ? new FastMap<>() : kwargs));
+            } else if (useArgs) {
+                return Transforms.toPython(handle.invoke(self, posArgs));
+            } else if (useKwargs) {
+                return Transforms.toPython(handle.invoke(self, kwargs == null ? new FastMap<>() : kwargs));
+            }
+            return Transforms.toPython(handle.invoke(self));
+        } catch (Throwable e) {
+            if (e instanceof PyUnwind) throw (PyUnwind) e;
+            throw new RuntimeException("Failed to call exported method (raw): " + e.getMessage(), e);
+        }
     }
 
 
     @Override
     public PyObject pyDanderCall(RuntimeExecuter ctx, Map<String, PyObject> kwargs, PyObject... args) {
+        if (useArgs || useKwargs) {
+            Object self = args.length > 0 ? args[0] : null;
+            PyObject[] posArgs = new PyObject[args.length > 0 ? args.length - 1 : 0];
+            if (posArgs.length > 0) System.arraycopy(args, 1, posArgs, 0, posArgs.length);
+            return invokeRaw(self, posArgs, kwargs);
+        }
         try {
             Object self = args[0];
             Object result;
@@ -78,6 +105,9 @@ public class PyMethodProxy extends PyObject implements Protocols.PyCallable {
             Map<String, PyObject> kwargs,
             PyObject[] args
     ) {
+        if (useArgs || useKwargs) {
+            return invokeRaw(self, args, kwargs);
+        }
         try {
             if (fastProxy == null) {
                 Object[] javaArgs = new Object[paramCount + 1];
@@ -125,6 +155,19 @@ public class PyMethodProxy extends PyObject implements Protocols.PyCallable {
 
     @Override
     public PyObject pyDanderCallFast(RuntimeExecuter ctx, PyObject[] args, String[] kwNames, PyObject[] kwValues) {
+        if (useArgs || useKwargs) {
+            Object self = args.length > 0 ? args[0] : null;
+            PyObject[] posArgs = new PyObject[args.length > 0 ? args.length - 1 : 0];
+            if (posArgs.length > 0) System.arraycopy(args, 1, posArgs, 0, posArgs.length);
+
+            Map<String, PyObject> kwargs = new FastMap<>();
+            if (kwNames != null && kwValues != null) {
+                for (int i = 0; i < kwNames.length; i++) {
+                    kwargs.put(kwNames[i], kwValues[i]);
+                }
+            }
+            return invokeRaw(self, posArgs, kwargs);
+        }
         if ((kwNames == null || kwNames.length == 0) && fastProxy != null) {
             try {
                 Object self = args.length > 0 ? args[0] : null;
@@ -148,7 +191,6 @@ public class PyMethodProxy extends PyObject implements Protocols.PyCallable {
             }
         }
 
-        // Медленный путь для kwargs
         return Protocols.PyCallable.super.pyDanderCallFast(ctx, args, kwNames, kwValues);
     }
 

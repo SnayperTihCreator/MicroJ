@@ -12,10 +12,7 @@ import org.tihrc.microj.units.SmartComplex;
 import org.tihrc.microj.units.SmartFloat;
 import org.tihrc.microj.units.SmartInt;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Deque;
-import java.util.List;
+import java.util.*;
 
 public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
         private List<Instruction> bytecode = new ArrayList<>();
@@ -38,11 +35,42 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
 
     public CompiledScript compile(MicroJParser.FileContext ctx) {
         visit(ctx);
+        System.out.println("=== Bytecode ===");
+        for (int i = 0; i < bytecode.size(); i++) {
+            System.out.println(i + ": " + bytecode.get(i));
+        }
         return new CompiledScript(bytecode, constants.toArray());
     }
 
     private int addConstant(PyObject value) {
         return constants.add(value);
+    }
+
+    private static List<String> freeVarsOf(List<Instruction> body, List<String> params,
+                                           String starArg, String kwArg) {
+        Set<String> bound = new HashSet<>(params);
+        if (starArg != null) bound.add(starArg);
+        if (kwArg != null) bound.add(kwArg);
+        Set<String> loaded = new HashSet<>(), nonlocals = new HashSet<>(),
+                globals = new HashSet<>(), nested = new HashSet<>();
+        for (Instruction i : body) {
+            switch (i) {
+                case StackInstructions.StoreName(String n) -> bound.add(n);
+                case StackInstructions.LoadName(String n)  -> loaded.add(n);
+                case StackInstructions.Nonlocal(String n)  -> nonlocals.add(n);
+                case StackInstructions.Global(String n)    -> globals.add(n);
+                case CallInstructions.MakeFunction(var name, var b, var p, var s, var k, List<String> fv) -> nested.addAll(fv);
+                default -> { }
+            }
+        }
+        bound.removeAll(nonlocals);
+        bound.removeAll(globals);
+        Set<String> free = new HashSet<>(loaded);
+        free.addAll(nonlocals);
+        free.addAll(nested);
+        free.removeAll(bound);
+        free.removeAll(globals);
+        return new ArrayList<>(free);
     }
 
     @Override
@@ -208,6 +236,17 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
     }
 
     @Override
+    public List<Instruction> visitRaiseStatement(MicroJParser.RaiseStatementContext ctx) {
+        if (ctx.expr() != null) {
+            visit(ctx.expr());
+            bytecode.add(new ErrorInstructions.RaiseException());
+        } else {
+            bytecode.add(new ErrorInstructions.ReRaise());
+        }
+        return bytecode;
+    }
+
+    @Override
     public List<Instruction> visitDelStatement(MicroJParser.DelStatementContext ctx) {
         for (var target : ctx.targetList().target()) {
             if (target.NAME() != null && target.atom() == null)
@@ -332,16 +371,15 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
 
         boolean isGenerator = funcBody.stream().anyMatch(inst -> inst instanceof StackInstructions.Yield);
 
+        if (!defaultNames.isEmpty())
+            bytecode.add(new BuilderInstructions.BuildTuple(defaultNames.size()));
+        else bytecode.add(new StackInstructions.LoadConst(INDEX_NONE));
+        List<String> freeVars = freeVarsOf(funcBody, params, starArg, kwArg);
         if (isGenerator) {
             int codeIdx = addConstant(new PyCode(funcBody));
-            bytecode.add(new CallInstructions.MakeGenerator(ctx.NAME().getText(), codeIdx, params));
+            bytecode.add(new CallInstructions.MakeGenerator(ctx.NAME().getText(), codeIdx, params, starArg, kwArg, freeVars));
         } else {
-            if (!defaultNames.isEmpty()) {
-                bytecode.add(new BuilderInstructions.BuildTuple(defaultNames.size()));
-            } else {
-                bytecode.add(new StackInstructions.LoadConst(INDEX_NONE));
-            }
-            bytecode.add(new CallInstructions.MakeFunction(ctx.NAME().getText(), funcBody, params, starArg, kwArg));
+            bytecode.add(new CallInstructions.MakeFunction(ctx.NAME().getText(), funcBody, params, starArg, kwArg, freeVars));
         }
 
         for (int i = ctx.decorator().size() - 1; i >= 0; i--) {
@@ -390,7 +428,8 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
         if (!defaultNames.isEmpty())
             bytecode.add(new BuilderInstructions.BuildTuple(defaultNames.size()));
         else bytecode.add(new StackInstructions.LoadConst(INDEX_NONE));
-        bytecode.add(new CallInstructions.MakeFunction("<lambda>", funcBody, params, starArg, kwArg));
+        List<String> freeVars = freeVarsOf(funcBody, params, starArg, kwArg);
+        bytecode.add(new CallInstructions.MakeFunction("<lambda>", funcBody, params, starArg, kwArg, freeVars));
         return bytecode;
     }
 
@@ -418,7 +457,9 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
         this.loopStack = mainLoopStack;
 
         String funcName = ctx.NAME().getText();
-        bytecode.add(new CallInstructions.MakeFunction(funcName, classBody, java.util.List.of(), null, null));
+        List<String> freeVars = freeVarsOf(classBody, java.util.List.of(), null, null);
+        bytecode.add(new StackInstructions.LoadConst(INDEX_NONE));
+        bytecode.add(new CallInstructions.MakeFunction(funcName, classBody, java.util.List.of(), null, null, freeVars));
         bytecode.add(new CallInstructions.CallFunction(0, new String[0]));
         bytecode.add(new StackInstructions.StoreName(funcName));
         return bytecode;

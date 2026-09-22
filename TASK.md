@@ -23,13 +23,13 @@
 
 Без этого скриптовый движок буквально ломается на половине реальных скриптов.
 
-| Фича | Что нужно сделать |
-|---|---|
+| Фича | Что нужно сделать | Реализовано |
+|---|---|-------------|
 | **Slices** `a[1:3]`, `a[::-1]` | Тип `PySlice`, доработка `BinarySubscript`/`StoreSubscript`, парсер |
-| **Default args**, `*args`, `**kwargs` | Парсер + `PyFunction` + `CallFunction` + `MakeFunction` |
-| **`lambda`** | Безымянная функция в компиляторе (почти как `def`, но auto-return) |
-| **`global` / `nonlocal`** | Новая инструкция + разрешение имён в `LoadName`/`StoreName` |
-| **`with`** + `__enter__` / `__exit__` | Инструкции `SetupWith`/`PopWith` + протокол |
+| **Default args**, `*args`, `**kwargs` | Парсер + `PyFunction` + `CallFunction` + `MakeFunction` | ✅           |
+| **`lambda`** | Безымянная функция в компиляторе (почти как `def`, но auto-return) | ✅ |
+| **`global` / `nonlocal`** | Новая инструкция + разрешение имён в `LoadName`/`StoreName` | ✅ |
+| **`with`** + `__enter__` / `__exit__` | Инструкции `SetupWith`/`PopWith` + протокол | ✅ |
 | **`open()`** + файловый I/O | Класс `PyFile` + модуль `io` |
 | **`json`** модуль | Обёртка над `com.fasterxml.jackson` или `org.json` |
 

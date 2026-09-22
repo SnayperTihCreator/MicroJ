@@ -31,19 +31,13 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
-def antlrOutput = layout.buildDirectory.dir('generated-src/antlr/main')
-
 generateGrammarSource {
     arguments += ['-visitor', '-package', 'org.tihrc.microj.antlr']
-    outputDirectory = antlrOutput.get().asFile
+    outputDirectory = file('src/generated/java/org/tihrc/microj/antlr')
 }
 
 sourceSets {
-    main {
-        java {
-            srcDir antlrOutput
-        }
-    }
+    main.java.srcDir('src/generated/java')
 }
 
 compileJava.dependsOn generateGrammarSource

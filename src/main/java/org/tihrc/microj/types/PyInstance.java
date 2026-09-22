@@ -3,7 +3,10 @@ package org.tihrc.microj.types;
 import org.tihrc.microj.core.Capability;
 import org.tihrc.microj.core.Protocols;
 import org.tihrc.microj.core.PyObject;
+import org.tihrc.microj.core.RuntimeExecuter;
 import org.tihrc.microj.core.transforms.PyExport;
+import org.tihrc.microj.types.collections.PyString;
+import org.tihrc.microj.types.core.PyContext;
 import org.tihrc.microj.units.FastMap;
 
 public class PyInstance extends PyObject {
@@ -33,6 +36,17 @@ public class PyInstance extends PyObject {
 
     public void setAttribute(String name, PyObject value) {
         attrs.put(name, value);
+    }
+
+    @Override
+    @PyExport(name = "__format__")
+    public PyObject pyDanderFormat(String spec) {
+        PyObject method = findAttribute("__format__");
+        if (method instanceof Protocols.PyCallable callable) {
+            RuntimeExecuter ctx = PyContext.current();
+            return callable.pyDanderCallFast(ctx, new PyObject[]{new PyString(spec)}, new String[0], new PyObject[0]);
+        }
+        return super.pyDanderFormat(spec);
     }
 
     @Override

@@ -138,3 +138,4 @@ node_modules/
 *.dump
 *.jfr
 /src/main/resources/scripts/
+/src/generated/

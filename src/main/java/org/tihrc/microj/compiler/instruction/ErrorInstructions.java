@@ -7,6 +7,7 @@ import org.tihrc.microj.core.RuntimeExecuter;
 import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.core.exceptions.PyBaseException;
 import org.tihrc.microj.core.exceptions.PyUnwind;
+import org.tihrc.microj.types.PyClass;
 import org.tihrc.microj.types.primitives.PyNone;
 import org.tihrc.microj.units.Frame;
 
@@ -27,14 +28,20 @@ public class ErrorInstructions {
         }
     }
 
-    public record CheckException(String typeName, int nextExceptTarget) implements Instruction {
+    public record CheckException(String typeName, int exceptBodyTarget) implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter vm) {
             PyBaseException exc = (PyBaseException) f.stack.peek();
-            if (typeName == null || typeName.equals(exc.getErrorType()) || typeName.equals("Exception") || typeName.equals("BaseException")) {
-                return true;
+
+            boolean matches = (typeName == null ||
+                    typeName.equals(exc.getErrorType()) ||
+                    typeName.equals("Exception") ||
+                    typeName.equals("BaseException"));
+
+            if (matches) {
+                f.pc = exceptBodyTarget;
+                return false;
             }
-            f.pc = nextExceptTarget;
-            return false;
+            return true;
         }
     }
 
@@ -42,6 +49,21 @@ public class ErrorInstructions {
         public boolean execute(Frame f, RuntimeExecuter vm) {
             PyBaseException exc = (PyBaseException) f.stack.pop();
             throw new PyUnwind(exc);
+        }
+    }
+
+    public record RaiseException() implements Instruction {
+        public boolean execute(Frame f, RuntimeExecuter vm) {
+            PyObject exc = f.stack.pop();
+            if (exc instanceof PyClass) {
+                exc = ((PyClass) exc).pyDanderCallFast(vm, new PyObject[0], new String[0], new PyObject[0]);
+            }
+            if (exc instanceof PyBaseException) {
+                ((PyBaseException) exc).raise();
+            } else {
+                return new Exceptions.PyTypeError("exceptions must derive from BaseException").raise();
+            }
+            return true;
         }
     }
 

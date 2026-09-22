@@ -5,28 +5,60 @@ import org.tihrc.microj.core.*;
 import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.core.transforms.PyMethodProxy;
 import org.tihrc.microj.types.*;
-import org.tihrc.microj.types.collections.PyGenerator;
 import org.tihrc.microj.types.collections.PyGeneratorFunc;
+import org.tihrc.microj.types.core.PyCell;
+import org.tihrc.microj.units.FastMap;
 import org.tihrc.microj.units.Frame;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 public class CallInstructions {
-    private static final PyObject[] NO_ARGS = new PyObject[0];
-    private static final String[] NO_KW_NAMES = new String[0];
+    public static final PyObject[] NO_ARGS = new PyObject[0];
+    public static final String[] NO_KW_NAMES = new String[0];
+    public static final PyObject[] NO_KW_VALUES = new PyObject[0];
 
-    public record MakeFunction(String name, List<Instruction> body, List<String> params, String starArg, String kwArg) implements Instruction {
+    private static PyObject preBindFreeVars(Frame f, RuntimeExecuter ctx, List<String> freeVars, Map<String, PyObject> closure) {
+        PyObject defaults = f.stack.pop();
+        if (f.locals != ctx.getGlobals()) {
+            for (String free : freeVars) {
+                PyObject cur = f.locals.get(free);
+                if (cur instanceof PyCell cell) {
+                    closure.put(free, cell);
+                } else if (cur != null) {
+                    PyCell cell = new PyCell(cur);
+                    f.locals.put(free, cell);
+                    closure.put(free, cell);
+                } else if (f.closure != null && f.closure.get(free) instanceof PyCell outer) {
+                    closure.put(free, outer);
+                } else {
+                    PyCell cell = new PyCell(null);
+                    f.locals.put(free, cell);
+                    closure.put(free, cell);
+                }
+            }
+        }
+        return defaults;
+    }
+
+    public record MakeFunction(String name, List<Instruction> body, List<String> params,
+                               String starArg, String kwArg, List<String> freeVars) implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter vm) {
-            f.stack.push(new PyFunction(name, body, params, f.locals, f.constants));
+            Map<String, PyObject> closure = new FastMap<>();
+            PyObject defaults = preBindFreeVars(f, vm, freeVars, closure);
+            f.stack.push(new PyFunction(name, body, params, starArg, kwArg, closure, defaults, f.constants));
             return true;
         }
     }
 
-    public record MakeGenerator(String name, int codeIndex, List<String> params) implements Instruction {
+    public record MakeGenerator(String name, int codeIndex, List<String> params,
+                                String starArg, String kwArg, List<String> freeVars) implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter vm) {
+            Map<String, PyObject> closure = new FastMap<>();
+            PyObject defaults = preBindFreeVars(f, vm, freeVars, closure);
             PyCode code = (PyCode) f.constants[codeIndex];
-            f.stack.push(new PyGeneratorFunc(name, code.body, params, f.constants));
+            f.stack.push(new PyGeneratorFunc(name, code.body, params, starArg, kwArg, closure, defaults, f.constants));
             return true;
         }
     }

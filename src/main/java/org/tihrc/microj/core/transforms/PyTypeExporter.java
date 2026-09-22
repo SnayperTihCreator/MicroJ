@@ -28,7 +28,7 @@ public class PyTypeExporter extends ClassValue<FastMap<PyObject>> {
             PyExport exp = findAnnotation(method);
             if (exp != null) {
                 String name = exp.name().isEmpty() ? method.getName() : exp.name();
-                methods.put(name, createProxy(method, name));
+                methods.put(name, createProxy(method, name, exp));
             }
         }
         return methods;
@@ -56,20 +56,23 @@ public class PyTypeExporter extends ClassValue<FastMap<PyObject>> {
         return INSTANCE.get(obj.getClass()).get(name);
     }
 
-    private PyObject createProxy(Method method, String name) {
+    private PyObject createProxy(Method method, String name, PyExport exp) {
         try {
             method.setAccessible(true);
             MethodHandle handle = MethodHandles.lookup().unreflect(method);
             int paramCount = method.getParameterTypes().length;
 
-            Object fastProxy = switch (paramCount) {
+            boolean useArgs = exp.args();
+            boolean useKwargs = exp.kwargs();
+
+            Object fastProxy = (!useArgs && !useKwargs) ? switch (paramCount) {
                 case 0 -> MethodHandleProxies.asInterfaceInstance(PyFunc0.class, handle);
                 case 1 -> MethodHandleProxies.asInterfaceInstance(PyFunc1.class, handle);
                 case 2 -> MethodHandleProxies.asInterfaceInstance(PyFunc2.class, handle);
                 default -> null;
-            };
+            } : null;
 
-            return new PyMethodProxy(handle, fastProxy, paramCount, method.getParameterTypes(), name);
+            return new PyMethodProxy(handle, fastProxy, paramCount, method.getParameterTypes(), name, useArgs, useKwargs);
         } catch (IllegalAccessException e) {
             throw new RuntimeException("Cannot access method: " + method.getName(), e);
         }

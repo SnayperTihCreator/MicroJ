@@ -6,11 +6,13 @@ import org.tihrc.microj.core.exceptions.BaseExceptions;
 import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.types.*;
 import org.tihrc.microj.types.collections.PyString;
+import org.tihrc.microj.types.primitives.PyFloat;
 import org.tihrc.microj.types.primitives.PyNone;
+import org.tihrc.microj.units.SmartFloat;
 
 @SuppressWarnings("DataFlowIssue")
 public class PyModuleSys extends PyModule {
-    private String backend = "interpreter";
+    private String backend = "bytecode";
 
     public PyModuleSys(Interpreter interpreter) {
         super("sys");
@@ -33,6 +35,8 @@ public class PyModuleSys extends PyModule {
         })));
 
         registerAttribute("backend", () -> new PyString(backend));
+
+        registerAttribute("time_ms", new PyBuiltinFunction((ctx) -> new PyFloat(new SmartFloat(System.currentTimeMillis()))));
     }
 
     public void setBackend(String backend) {

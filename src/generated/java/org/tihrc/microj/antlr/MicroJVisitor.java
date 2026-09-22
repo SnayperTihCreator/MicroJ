@@ -131,6 +131,12 @@ public interface MicroJVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitExceptClause(MicroJParser.ExceptClauseContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link MicroJParser#raiseStatement}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitRaiseStatement(MicroJParser.RaiseStatementContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link MicroJParser#ifStatement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result

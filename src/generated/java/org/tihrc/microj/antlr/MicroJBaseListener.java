@@ -257,6 +257,18 @@ public class MicroJBaseListener implements MicroJListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterRaiseStatement(MicroJParser.RaiseStatementContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitRaiseStatement(MicroJParser.RaiseStatementContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterIfStatement(MicroJParser.IfStatementContext ctx) { }
 	/**
 	 * {@inheritDoc}

@@ -1,6 +1,7 @@
-def gen():
-    yield 1
-    yield 2
+def divide(a, b):
+    return a / b
 
-for x in gen():
-    print(x)
+try:
+    divide(10, 0)
+except ZeroDivisionError as e:
+    print("Caught:", e)

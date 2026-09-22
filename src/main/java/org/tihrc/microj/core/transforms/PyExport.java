@@ -9,4 +9,6 @@ import java.lang.annotation.Target;
 @Target(ElementType.METHOD)
 public @interface PyExport {
     String name() default "";
+    boolean args() default false;
+    boolean kwargs() default false;
 }

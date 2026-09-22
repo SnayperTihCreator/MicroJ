@@ -10,6 +10,8 @@ import org.tihrc.microj.types.primitives.PyBool;
 import org.tihrc.microj.types.primitives.PyInt;
 import org.tihrc.microj.types.primitives.PyNone;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 @SuppressWarnings("unused")
@@ -19,6 +21,129 @@ public class PyString extends PyObject implements Protocols.PyNumber, Protocols.
     public PyString(String value) {
         this.value = value;
     }
+
+    @PyExport(name = "format", args = true, kwargs = true)
+    public PyObject pyStringFormat(PyObject[] args, Map<String, PyObject> kwargs) {
+        if (kwargs == null) kwargs = new HashMap<>();
+
+        StringBuilder result = new StringBuilder();
+        int autoIdx = 0;
+        int i = 0;
+
+        while (i < value.length()) {
+            char c = value.charAt(i);
+            if (c == '{') {
+                if (i + 1 < value.length() && value.charAt(i + 1) == '{') {
+                    result.append('{');
+                    i += 2;
+                    continue;
+                }
+                int end = value.indexOf('}', i);
+                if (end == -1) {
+                    result.append(c);
+                    i++;
+                    continue;
+                }
+                String field = value.substring(i + 1, end);
+                String fieldName = field;
+                String spec = "";
+                int colon = field.indexOf(':');
+                if (colon != -1) {
+                    fieldName = field.substring(0, colon);
+                    spec = field.substring(colon + 1);
+                }
+
+                PyObject val;
+                if (fieldName.isEmpty()) {
+                    if (autoIdx >= args.length) {
+                        return new Exceptions.PyIndexError("tuple index out of range").raise();
+                    }
+                    val = args[autoIdx++];
+                } else if (Character.isDigit(fieldName.charAt(0))) {
+                    int idx = Integer.parseInt(fieldName);
+                    if (idx >= args.length) {
+                        return new Exceptions.PyIndexError("tuple index out of range").raise();
+                    }
+                    val = args[idx];
+                } else {
+                    val = kwargs.get(fieldName);
+                }
+
+                if (val == null) val = PyNone.INSTANCE;
+
+                PyObject formatted = val.pyDanderFormat(spec);
+                result.append(formatted.pyDanderStr());
+
+                i = end + 1;
+            } else if (c == '}') {
+                if (i + 1 < value.length() && value.charAt(i + 1) == '}') {
+                    result.append('}');
+                    i += 2;
+                    continue;
+                }
+                result.append(c);
+                i++;
+            } else {
+                result.append(c);
+                i++;
+            }
+        }
+        return new PyString(result.toString());
+    }
+
+    @Override
+    @PyExport(name = "__format__")
+    public PyObject pyDanderFormat(String spec) {
+        if (spec == null || spec.isEmpty()) return this;
+        return new PyString(applyFormatSpec(this.value, spec));
+    }
+
+    private String applyFormatSpec(String strVal, String spec) {
+        char fill = ' ';
+        char align;
+        int width;
+
+        try {
+            if (spec.length() >= 2 && (spec.charAt(1) == '<' || spec.charAt(1) == '>' || spec.charAt(1) == '^')) {
+                fill = spec.charAt(0);
+                align = spec.charAt(1);
+                width = Integer.parseInt(spec.substring(2));
+            } else if (!spec.isEmpty() && (spec.charAt(0) == '<' || spec.charAt(0) == '>' || spec.charAt(0) == '^')) {
+                align = spec.charAt(0);
+                width = Integer.parseInt(spec.substring(1));
+            } else if (spec.length() >= 2 && spec.charAt(0) == '0' && Character.isDigit(spec.charAt(1))) {
+                fill = '0';
+                align = '>';
+                width = Integer.parseInt(spec.substring(1));
+            } else {
+                width = Integer.parseInt(spec);
+                align = '>';
+            }
+        } catch (NumberFormatException e) {
+            return strVal; // Пока игнорируем сложные спеки (типа .2f для строк)
+        }
+
+        if (strVal.length() >= width) return strVal;
+        int padCount = width - strVal.length();
+        StringBuilder sb = new StringBuilder();
+        if (align == '>') {
+            sb.append(String.valueOf(fill).repeat(padCount));
+            sb.append(strVal);
+        } else if (align == '<') {
+            sb.append(strVal);
+            sb.append(String.valueOf(fill).repeat(padCount));
+        } else if (align == '^') {
+            int left = padCount / 2;
+            int right = padCount - left;
+            sb.append(String.valueOf(fill).repeat(left));
+            sb.append(strVal);
+            sb.append(String.valueOf(fill).repeat(Math.max(0, right)));
+        } else {
+            return strVal;
+        }
+        return sb.toString();
+    }
+
 
     @PyExport(name = "upper")
     public PyObject pyStringUpper() {

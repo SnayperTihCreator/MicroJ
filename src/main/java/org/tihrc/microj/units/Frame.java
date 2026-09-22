@@ -17,6 +17,9 @@ public class Frame {
     public Deque<int[]> tryHandlers = null;
     public PyObject[] constants;
 
+    private Set<String> nonlocalNames = null;
+    private Set<String> globalNames = null;
+
     private static final PyObject[] NO_CONSTANTS = new PyObject[0];
 
     public void pushTryHandler(int target, int prevPc) {
@@ -58,6 +61,8 @@ public class Frame {
         this.stack.clear();
         this.locals.clear();
         if (this.tryHandlers != null) this.tryHandlers.clear();
+        if (nonlocalNames != null) nonlocalNames.clear();
+        if (globalNames != null) globalNames.clear();
     }
 
     public void clean() {
@@ -68,7 +73,20 @@ public class Frame {
         this.stack.clear();
         this.locals.clear();
         if (this.tryHandlers != null) this.tryHandlers.clear();
+        if (nonlocalNames != null) nonlocalNames.clear();
+        if (globalNames != null) globalNames.clear();
     }
+
+    public void declareNonLocal(String name){
+        if (nonlocalNames == null) nonlocalNames = new HashSet<>();
+        nonlocalNames.add(name);
+    }
+    public void declareGlobal(String name){
+        if (globalNames == null) globalNames = new HashSet<>();
+        globalNames.add(name);
+    }
+    public boolean isNonlocal(String name) { return nonlocalNames != null && nonlocalNames.contains(name); }
+    public boolean isGlobal(String name)   { return globalNames != null && globalNames.contains(name); }
 
     public FrameTask createTask() {
         return new FrameTask(this);

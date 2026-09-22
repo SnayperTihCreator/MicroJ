@@ -84,7 +84,6 @@ public class OperatorInstructions {
                     return false;
                 }
             }
-
             return new Exceptions.PyTypeError("unsupported operand type for " + type).raise();
         }
     }

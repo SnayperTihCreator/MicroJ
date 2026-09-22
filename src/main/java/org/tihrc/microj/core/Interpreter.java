@@ -8,7 +8,9 @@ import org.tihrc.microj.backend.jvm.JvmCompiler;
 import org.tihrc.microj.backend.jvm.JvmScript;
 import org.tihrc.microj.compiler.IndentingLexer;
 import org.tihrc.microj.compiler.InstructionGenerator;
+import org.tihrc.microj.core.exceptions.PyUnwind;
 import org.tihrc.microj.stl.PyModuleSys;
+import org.tihrc.microj.types.core.PyContext;
 import org.tihrc.microj.types.primitives.PyNone;
 
 import java.io.IOException;
@@ -59,25 +61,36 @@ public class Interpreter {
     }
 
     public PyObject run(InstructionGenerator.CompiledScript script) {
-        if (script == null) {
-            throw new IllegalArgumentException("CompiledScript == null");
-        }
+        if (script == null) throw new IllegalArgumentException("CompiledScript == null");
 
-        RuntimeExecuter vm = new RuntimeExecuter(this);
+        RuntimeExecuter ctx = new RuntimeExecuter(this);
 
-        try {
-            JvmScript jitScript = jitCache.get(script);
-            if (jitScript == null) {
-                JvmCompiler compiler = new JvmCompiler();
-                jitScript = compiler.compile(script.code(), script.constants());
-                jitCache.put(script, jitScript);
+        return PyContext.with(ctx, () -> {
+            JvmScript jitScript;
+            try {
+                jitScript = jitCache.get(script);
+                if (jitScript == null) {
+                    jitScript = new JvmCompiler().compile(script);
+                    jitCache.put(script, jitScript);
+                }
+            } catch (Throwable t) {
+                System.err.println("[microj] JIT compile failed → bytecode: " + t);
+                sysModule.setBackend("bytecode");
+                return ctx.run(script);
             }
+
             sysModule.setBackend("jit");
-            return jitScript.execute(vm);
-        } catch (Exception e) {
-            sysModule.setBackend("interpreter");
-            return vm.run(script);
-        }
+            try {
+                return jitScript.execute(ctx);
+            } catch (PyUnwind e) {
+                return ctx.raised(e.exception);
+            } catch (Exception e) {
+                System.err.println("[microj] JIT execute failed → bytecode: "
+                        + e.getClass().getSimpleName() + ": " + e.getMessage());
+                sysModule.setBackend("bytecode");
+                return ctx.run(script);
+            }
+        });
     }
 
     @SuppressWarnings("UnusedReturnValue")

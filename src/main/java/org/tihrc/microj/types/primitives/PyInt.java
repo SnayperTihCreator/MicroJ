@@ -5,6 +5,7 @@ import org.tihrc.microj.core.PyNotImplemented;
 import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.core.transforms.PyExport;
+import org.tihrc.microj.types.collections.PyString;
 import org.tihrc.microj.units.SmartFloat;
 import org.tihrc.microj.units.SmartInt;
 
@@ -200,6 +201,99 @@ public class PyInt extends PyObject implements Protocols.PyNumber, Protocols.PyC
             return PyBool.from(value.toDouble() <= f.value.toDouble());
         return PyNotImplemented.INSTANCE;
     }
+    @Override
+    @PyExport(name = "__format__")
+    public PyObject pyDanderFormat(String spec) {
+        if (spec == null || spec.isEmpty()) {
+            return new PyString(pyDanderStr());
+        }
+        long number = this.value.toLong();
+        return new PyString(applyIntFormatSpec(number, spec));
+    }
+
+    private String applyIntFormatSpec(long number, String spec) {
+        char type = 'd';
+        int width = 0;
+        char fill = ' ';
+        char align = '>';
+        boolean zeroPad = false;
+
+        if (!spec.isEmpty()) {
+            char last = spec.charAt(spec.length() - 1);
+            if (last == 'd' || last == 'b' || last == 'o' || last == 'x' || last == 'X' || last == 'c' || last == 'n') {
+                type = last;
+                spec = spec.substring(0, spec.length() - 1);
+            }
+        }
+
+        if (spec.startsWith("0") && spec.length() > 1) {
+            zeroPad = true;
+            spec = spec.substring(1);
+        }
+
+        if (!spec.isEmpty() && (spec.charAt(0) == '<' || spec.charAt(0) == '>' || spec.charAt(0) == '^')) {
+            align = spec.charAt(0);
+            spec = spec.substring(1);
+        }
+
+        try {
+            if (!spec.isEmpty()) {
+                width = Integer.parseInt(spec);
+            }
+        } catch (NumberFormatException e) {
+            return String.valueOf(number);
+        }
+
+        String sign = "";
+        long absNum = number;
+        if (number < 0) {
+            sign = "-";
+            absNum = -number;
+        }
+
+        String numStr = switch (type) {
+            case 'b' -> Long.toBinaryString(absNum);
+            case 'o' -> Long.toOctalString(absNum);
+            case 'x' -> Long.toHexString(absNum);
+            case 'X' -> Long.toHexString(absNum).toUpperCase();
+            case 'c' -> String.valueOf((char) absNum);
+            default -> String.valueOf(absNum);
+        };
+
+        String fullStr = sign + numStr;
+
+        if (fullStr.length() >= width) return fullStr;
+
+        int padCount = width - fullStr.length();
+        StringBuilder sb = new StringBuilder();
+
+        if (zeroPad) {
+            fill = '0';
+            align = '>';
+        }
+
+        if (zeroPad && !sign.isEmpty()) {
+            sb.append(sign);
+            sb.append(String.valueOf(fill).repeat(padCount));
+            sb.append(numStr);
+        } else {
+            if (align == '>') {
+                sb.append(String.valueOf(fill).repeat(padCount));
+                sb.append(fullStr);
+            } else if (align == '<') {
+                sb.append(fullStr);
+                sb.append(String.valueOf(fill).repeat(padCount));
+            } else if (align == '^') {
+                int left = padCount / 2;
+                int right = padCount - left;
+                sb.append(String.valueOf(fill).repeat(left));
+                sb.append(fullStr);
+                sb.append(String.valueOf(fill).repeat(Math.max(0, right)));
+            }
+        }
+        return sb.toString();
+    }
+
     @Override
     public String pyDanderRepr() {
         return String.valueOf(value);

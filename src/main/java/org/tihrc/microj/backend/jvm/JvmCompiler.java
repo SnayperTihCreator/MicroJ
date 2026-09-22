@@ -17,36 +17,33 @@ import org.tihrc.microj.types.primitives.PyNone;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 
-public class JvmCompiler implements Opcodes {
+public class JvmCompiler implements Opcodes, AsmTypes {
     private static final AtomicLong CLASS_COUNTER = new AtomicLong(0);
-    private static final String PYOBJECT_DESC = "Lorg/tihrc/microj/core/PyObject;";
-    private static final String CTX_DESC = "Lorg/tihrc/microj/core/RuntimeExecuter;";
+    private static final AtomicLong FUNC_COUNTER = new AtomicLong(0);
 
     public JvmScript compile(InstructionGenerator.CompiledScript script){
         return compile(script.code(), script.constants());
     }
 
     public JvmScript compile(List<Instruction> code, PyObject[] constants) {
-        String className = "org.tihrc.microj.gen.Script$" + CLASS_COUNTER.incrementAndGet();
+        String className = "%sgen.Script$%s".formatted(PREFIX2, CLASS_COUNTER.incrementAndGet());
         String internalClassName = className.replace('.', '/');
 
         MicroJClassLoader loader = new MicroJClassLoader(JvmCompiler.class.getClassLoader());
 
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
-        cw.visit(V21, ACC_PUBLIC | ACC_FINAL, internalClassName, null, "java/lang/Object",
-                new String[]{"org/tihrc/microj/backend/jvm/JvmScript"});
+        cw.visit(V21, ACC_PUBLIC | ACC_FINAL, internalClassName, null, OBJECT, new String[]{JVM_SCRIPT});
 
-        cw.visitField(ACC_PRIVATE | ACC_FINAL, "constants", "[Lorg/tihrc/microj/core/PyObject;", null, null).visitEnd();
+        cw.visitField(ACC_PRIVATE | ACC_FINAL, "constants", PYARR_OBJECT, null, null).visitEnd();
 
-        MethodVisitor init = cw.visitMethod(ACC_PUBLIC, "<init>", "([Lorg/tihrc/microj/core/PyObject;)V", null, null);
+        MethodVisitor init = cw.visitMethod(ACC_PUBLIC, "<init>", "(%s)V".formatted(PYARR_OBJECT), null, null);
         init.visitCode();
         init.visitVarInsn(ALOAD, 0);
-        init.visitMethodInsn(INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
+        init.visitMethodInsn(INVOKESPECIAL, OBJECT, "<init>", "()V", false);
         init.visitVarInsn(ALOAD, 0);
         init.visitVarInsn(ALOAD, 1);
-        init.visitFieldInsn(PUTFIELD, internalClassName, "constants", "[Lorg/tihrc/microj/core/PyObject;");
+        init.visitFieldInsn(PUTFIELD, internalClassName, "constants", PYARR_OBJECT);
         init.visitInsn(RETURN);
         init.visitMaxs(2, 2);
         init.visitEnd();
@@ -64,7 +61,7 @@ public class JvmCompiler implements Opcodes {
         int nextSlot = 9;
 
         pushInt(mv, localsArraySize);
-        mv.visitTypeInsn(ANEWARRAY, "org/tihrc/microj/core/PyObject");
+        mv.visitTypeInsn(ANEWARRAY, PY_OBJECT);
         mv.visitVarInsn(ASTORE, localsSlot);
 
         mv.visitInsn(ACONST_NULL);
@@ -75,7 +72,8 @@ public class JvmCompiler implements Opcodes {
             mv.visitVarInsn(ASTORE, i);
         }
 
-        compileBlock(cw, mv, code, internalClassName, localSlots, new HashMap<>(), localsSlot, closureSlot, tempSlot, lastResultSlot, new HashSet<>(), new HashSet<>());
+        compileBlock(cw, mv, code, internalClassName, localSlots, new HashSet<>(), new HashMap<>(),
+                localsSlot, closureSlot, tempSlot, lastResultSlot, new HashSet<>(), new HashSet<>());
 
         if (code.isEmpty() || !(code.getLast() instanceof StackInstructions.ReturnValue)) {
             mv.visitVarInsn(ALOAD, lastResultSlot);
@@ -97,19 +95,12 @@ public class JvmCompiler implements Opcodes {
     }
 
     private void compileBlock(ClassWriter cw, MethodVisitor mv, List<Instruction> code, String internalClassName,
-                              Map<String, Integer> localSlots, Map<String, Integer> outerSlots,
+                              Map<String, Integer> localSlots, Set<String> cellVars, Map<String, Integer> outerSlots,
                               int localsSlot, int closureSlot, int tempSlot, int lastResultSlot,
-                              java.util.Set<String> globals, java.util.Set<String> nonlocals) {
+                              Set<String> globals, Set<String> nonlocals) {
         Map<Integer, Label> jumpTargets = new HashMap<>();
         for (Instruction instr : code) {
-            Integer target = null;
-            if (instr instanceof ControlFlowInstructions.PopJumpIfFalse(int t)) target = t;
-            else if (instr instanceof ControlFlowInstructions.JumpAbsolute(int t)) target = t;
-            else if (instr instanceof ControlFlowInstructions.JumpIfFalseOrPop(int t)) target = t;
-            else if (instr instanceof ControlFlowInstructions.JumpIfTrueOrPop(int t)) target = t;
-            else if (instr instanceof ControlFlowInstructions.ForIter(int t)) target = t;
-            else if (instr instanceof ErrorInstructions.SetupExcept(int t)) target = t;
-            else if (instr instanceof ErrorInstructions.CheckException(String ignore, int t)) target = t;
+            final var target = getTarget(instr);
 
             if (target != null) {
                 jumpTargets.computeIfAbsent(target, k -> new Label());
@@ -144,8 +135,8 @@ public class JvmCompiler implements Opcodes {
 
             switch (instr) {
                 case StackInstructions.LoadConst(int index) -> emitLoadConst(mv, internalClassName, index);
-                case StackInstructions.StoreName(String name) -> emitStoreName(mv, name, localSlots, localsSlot, closureSlot, outerSlots, nonlocals);
-                case StackInstructions.LoadName(String name) -> emitLoadName(mv, name, localSlots, outerSlots, localsSlot, closureSlot);
+                case StackInstructions.StoreName(String name) -> emitStoreName(mv, name, localSlots, cellVars, localsSlot, closureSlot, outerSlots, nonlocals);
+                case StackInstructions.LoadName(String name) -> emitLoadName(mv, name, localSlots, cellVars, outerSlots, localsSlot, closureSlot);
                 case StackInstructions.PopTop ignore -> mv.visitVarInsn(ASTORE, lastResultSlot);
                 case StackInstructions.ReturnValue ignore -> mv.visitInsn(ARETURN);
                 case StackInstructions.DeleteName(String name) -> emitDeleteName(mv, name, localSlots, localsSlot);
@@ -165,10 +156,11 @@ public class JvmCompiler implements Opcodes {
                 case ErrorInstructions.SetupExcept(int ignore) -> {}
                 case ErrorInstructions.PopTry() -> {}
                 case ErrorInstructions.ReRaise() ->
-                        mv.visitMethodInsn(INVOKESTATIC, "org/tihrc/microj/backend/jvm/JvmCompiler", "reRaise", "(Ljava/lang/Object;)V", false);
+                        mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "reRaise", "(L%s;)V".formatted(OBJECT), false);
                 case ErrorInstructions.CheckException(String typeName, int target) ->
                         emitCheckException(mv, typeName, target, jumpTargets);
                 case ErrorInstructions.Assert() -> emitAssert(mv);
+                case ErrorInstructions.RaiseException() -> emitRaiseException(mv);
 
                 case BuilderInstructions.BuildList(int count) -> emitBuildList(mv, count, tempSlot);
                 case BuilderInstructions.BuildClass(String name, String[] bases) -> emitBuildClass(mv, name, localSlots, localsSlot, bases);
@@ -181,12 +173,14 @@ public class JvmCompiler implements Opcodes {
                 case ControlFlowInstructions.GetIter() -> emitGetIter(mv);
                 case ControlFlowInstructions.ForIter(int target) -> emitForIter(mv, jumpTargets, target);
 
-                case CallInstructions.MakeFunction(String name, List<Instruction> body, List<String> params, String starArg, String kwArg) ->
-                        emitMakeFunction(cw, internalClassName, body, mv, params, name, starArg, kwArg, localSlots, localsSlot, tempSlot);
+                case CallInstructions.MakeFunction(String name, List<Instruction> body, List<String> params, String starArg, String kwArg, List<String> freeVars) ->
+                        emitMakeFunction(cw, internalClassName, body, mv, params, name, starArg, kwArg, freeVars,
+                                localSlots, outerSlots, nonlocals, localsSlot, closureSlot, tempSlot);
                 case CallInstructions.CallFunction(int posCount, String[] kwNames) ->
                         emitCallFunction(mv, posCount, kwNames, tempSlot);
-                case CallInstructions.MakeGenerator(String name, int codeIndex, List<String> params) ->
-                        emitMakeGenerator(mv, internalClassName, name, codeIndex, localsSlot);
+                case CallInstructions.MakeGenerator(String name, int codeIndex, List<String> params, String starArg, String kwArg, List<String> freeVars) ->
+                        emitMakeGenerator(mv, internalClassName, name, codeIndex, localsSlot, closureSlot, tempSlot,
+                                params, starArg, kwArg, freeVars, localSlots, outerSlots);
 
                 case AttributeInstructions.GetAttr(String name) -> emitGetAttr(mv, name);
                 case AttributeInstructions.SetAttr(String name) -> emitSetAttr(mv, name, tempSlot);
@@ -200,25 +194,38 @@ public class JvmCompiler implements Opcodes {
         }
 
         for (var tcb : tryCatchBlocks) {
-            mv.visitTryCatchBlock((Label) tcb[0], (Label) tcb[1], (Label) tcb[2], "org/tihrc/microj/core/exceptions/PyUnwind");
+            mv.visitTryCatchBlock((Label) tcb[0], (Label) tcb[1], (Label) tcb[2], PY_UNWIND);
         }
+    }
+
+    private static Integer getTarget(Instruction instr) {
+        Integer target = null;
+        if (instr instanceof ControlFlowInstructions.PopJumpIfFalse(int t)) target = t;
+        else if (instr instanceof ControlFlowInstructions.JumpAbsolute(int t)) target = t;
+        else if (instr instanceof ControlFlowInstructions.JumpIfFalseOrPop(int t)) target = t;
+        else if (instr instanceof ControlFlowInstructions.JumpIfTrueOrPop(int t)) target = t;
+        else if (instr instanceof ControlFlowInstructions.ForIter(int t)) target = t;
+        else if (instr instanceof ErrorInstructions.SetupExcept(int t)) target = t;
+        else if (instr instanceof ErrorInstructions.CheckException(String ignore, int t)) target = t;
+        return target;
     }
 
     private static void emitGetAttr(MethodVisitor mv, String name){
         mv.visitLdcInsn(name);
-        mv.visitMethodInsn(INVOKEVIRTUAL, "org/tihrc/microj/core/PyObject", "findAttribute", "(Ljava/lang/String;)Lorg/tihrc/microj/core/PyObject;", false);
+        mv.visitMethodInsn(INVOKEVIRTUAL, PY_OBJECT, "findAttribute", "(L%s;)L%s;".formatted(STRING, PY_OBJECT), false);
     }
 
     private static void emitSetAttr(MethodVisitor mv, String name, int tempSlot){
         mv.visitVarInsn(ASTORE, tempSlot + 2);
         mv.visitLdcInsn(name);
         mv.visitVarInsn(ALOAD, tempSlot + 2);
-        mv.visitMethodInsn(INVOKEVIRTUAL, "org/tihrc/microj/core/PyObject", "setAttribute", "(Ljava/lang/String;Lorg/tihrc/microj/core/PyObject;)V", false);
+        mv.visitMethodInsn(INVOKEVIRTUAL, PY_OBJECT, "setAttribute", "(L%s;L%s;)V".formatted(STRING, PY_OBJECT), false);
     }
 
-    private void compileFunctionBody(ClassWriter cw, String internalClassName, String methodName, List<Instruction> body, List<String> params, String starArg, String kwArg, Map<String, Integer> outerSlots) {
-        MethodVisitor mv = cw.visitMethod(ACC_PRIVATE, methodName,
-                "(" + CTX_DESC + "[Lorg/tihrc/microj/core/PyObject;Lorg/tihrc/microj/core/PyObject;[Lorg/tihrc/microj/core/PyObject;[Ljava/lang/String;[Lorg/tihrc/microj/core/PyObject;)" + PYOBJECT_DESC, null, null);
+    private void compileFunctionBody(ClassWriter cw, String internalClassName, String methodName,
+                                     List<Instruction> body, List<String> params, String starArg, String kwArg,
+                                     List<String> freeVars) {
+        MethodVisitor mv = cw.visitMethod(ACC_PRIVATE, methodName, FUNC_METHOD_DESC, null, null);
         mv.visitCode();
 
         Map<String, Integer> localSlots = new HashMap<>();
@@ -245,6 +252,11 @@ public class JvmCompiler implements Opcodes {
             }
         }
 
+        final var cellVars = getCellVars(body, localSlots, globals);
+
+        Map<String, Integer> outerSlots = new HashMap<>();
+        for (int j = 0; j < freeVars.size(); j++) outerSlots.put(freeVars.get(j), j);
+
         int closureSlot = 2;
         int defaultsSlot = 3;
         int argsSlot = 4;
@@ -256,7 +268,7 @@ public class JvmCompiler implements Opcodes {
         int nextSlot = 13;
 
         pushInt(mv, localsArraySize);
-        mv.visitTypeInsn(ANEWARRAY, "org/tihrc/microj/core/PyObject");
+        mv.visitTypeInsn(ANEWARRAY, PY_OBJECT);
         mv.visitVarInsn(ASTORE, localsSlot);
 
         for (int slot = lastResultSlot; slot < nextSlot; slot++) {
@@ -264,15 +276,15 @@ public class JvmCompiler implements Opcodes {
             mv.visitVarInsn(ASTORE, slot);
         }
 
-        mv.visitVarInsn(ALOAD, 1); // ctx
-        mv.visitVarInsn(ALOAD, localsSlot); // ПЕРЕДАЕМ ВЫДЕЛЕННЫЙ МАССИВ!
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitVarInsn(ALOAD, localsSlot);
         mv.visitVarInsn(ALOAD, defaultsSlot);
         mv.visitVarInsn(ALOAD, argsSlot);
         mv.visitVarInsn(ALOAD, kwNamesSlot);
         mv.visitVarInsn(ALOAD, kwValuesSlot);
 
         pushInt(mv, params.size());
-        mv.visitTypeInsn(ANEWARRAY, "java/lang/String");
+        mv.visitTypeInsn(ANEWARRAY, STRING);
         for (int i = 0; i < params.size(); i++) {
             mv.visitInsn(DUP);
             pushInt(mv, i);
@@ -282,12 +294,25 @@ public class JvmCompiler implements Opcodes {
 
         if (starArg != null) mv.visitLdcInsn(starArg); else mv.visitInsn(ACONST_NULL);
         if (kwArg != null) mv.visitLdcInsn(kwArg); else mv.visitInsn(ACONST_NULL);
-
-        mv.visitMethodInsn(INVOKESTATIC, "org/tihrc/microj/backend/jvm/JvmCompiler", "bindArgs",
-                "(Lorg/tihrc/microj/core/RuntimeExecuter;[Lorg/tihrc/microj/core/PyObject;Lorg/tihrc/microj/core/PyObject;[Lorg/tihrc/microj/core/PyObject;[Ljava/lang/String;[Lorg/tihrc/microj/core/PyObject;[Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)[Lorg/tihrc/microj/core/PyObject;", false);
+        mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "bindArgs",
+                "(L%s;%sL%s;%s[L%s;[L%s;[L%s;L%s;L%s;)[L%s;".formatted(RUN_EXECUTER, PYARR_OBJECT, PY_OBJECT, PYARR_OBJECT, STRING, PY_OBJECT, STRING, STRING, STRING, PY_OBJECT), false);
         mv.visitInsn(POP);
 
-        compileBlock(cw, mv, body, internalClassName, localSlots, outerSlots, localsSlot, closureSlot, tempSlot, lastResultSlot, globals, nonlocals);
+        for (String f : cellVars) {
+            int idx = localSlots.get(f);
+            mv.visitVarInsn(ALOAD, localsSlot);
+            pushInt(mv, idx);
+            mv.visitTypeInsn(NEW, PY_CELL);
+            mv.visitInsn(DUP);
+            mv.visitVarInsn(ALOAD, localsSlot);
+            pushInt(mv, idx);
+            mv.visitInsn(AALOAD);
+            mv.visitMethodInsn(INVOKESPECIAL, PY_CELL, "<init>", "(" + PYOBJECT_DESC + ")V", false);
+            mv.visitInsn(AASTORE);
+        }
+
+        compileBlock(cw, mv, body, internalClassName, localSlots, cellVars, outerSlots,
+                localsSlot, closureSlot, tempSlot, lastResultSlot, globals, nonlocals);
 
         if (body.isEmpty() || !(body.getLast() instanceof StackInstructions.ReturnValue)) {
             mv.visitVarInsn(ALOAD, lastResultSlot);
@@ -298,45 +323,79 @@ public class JvmCompiler implements Opcodes {
         mv.visitEnd();
     }
 
+    @SuppressWarnings("unused")
+    private static Set<String> getCellVars(List<Instruction> body, Map<String, Integer> localSlots, Set<String> globals) {
+        Set<String> cellVars = new HashSet<>();
+        for (Instruction instr : body) {
+            List<String> fv = switch (instr) {
+                case CallInstructions.MakeFunction(var n, var b, var p, var s, var k, List<String> v) -> v;
+                case CallInstructions.MakeGenerator(var n, var ci, var p, var s, var k, List<String> v) -> v;
+                default -> List.of();
+            };
+            for (String f : fv) {
+                if (localSlots.containsKey(f) && !globals.contains(f)) cellVars.add(f);
+            }
+        }
+        return cellVars;
+    }
+
     private static void emitLoadConst(MethodVisitor mv, String internalName, int index) {
         mv.visitVarInsn(ALOAD, 0);
-        mv.visitFieldInsn(GETFIELD, internalName, "constants", "[Lorg/tihrc/microj/core/PyObject;");
+        mv.visitFieldInsn(GETFIELD, internalName, "constants", PYARR_OBJECT);
         pushInt(mv, index);
         mv.visitInsn(AALOAD);
     }
 
-    private static void emitStoreName(MethodVisitor mv, String name, Map<String, Integer> localSlots, int localsSlot, int closureSlot, Map<String, Integer> outerSlots, java.util.Set<String> nonlocals) {
+    private static void emitStoreName(MethodVisitor mv, String name, Map<String, Integer> localSlots, Set<String> cellVars,
+                                      int localsSlot, int closureSlot, Map<String, Integer> outerSlots, Set<String> nonlocals) {
         Integer index = localSlots.get(name);
         if (index != null) {
-            mv.visitVarInsn(ALOAD, localsSlot);
-            mv.visitInsn(SWAP);
-            pushInt(mv, index);
-            mv.visitInsn(SWAP);
-            mv.visitInsn(AASTORE);
+            if (cellVars.contains(name)) {
+                mv.visitVarInsn(ALOAD, localsSlot);
+                pushInt(mv, index);
+                mv.visitInsn(AALOAD);
+                mv.visitTypeInsn(CHECKCAST, PY_CELL);
+                mv.visitInsn(SWAP);
+                mv.visitFieldInsn(PUTFIELD, PY_CELL, "value", PYOBJECT_DESC);
+            } else {
+                mv.visitVarInsn(ALOAD, localsSlot);
+                mv.visitInsn(SWAP);
+                pushInt(mv, index);
+                mv.visitInsn(SWAP);
+                mv.visitInsn(AASTORE);
+            }
         } else if (nonlocals.contains(name)) {
             Integer outerIndex = outerSlots.get(name);
+            if (outerIndex == null)
+                throw new IllegalStateException("nonlocal '" + name + "' has no binding in enclosing function");
             mv.visitVarInsn(ALOAD, closureSlot);
-            mv.visitInsn(SWAP);
             pushInt(mv, outerIndex);
+            mv.visitInsn(AALOAD);
+            mv.visitTypeInsn(CHECKCAST, PY_CELL);
             mv.visitInsn(SWAP);
-            mv.visitInsn(AASTORE);
+            mv.visitFieldInsn(PUTFIELD, PY_CELL, "value", PYOBJECT_DESC);
         } else {
             mv.visitVarInsn(ALOAD, 1);
-            mv.visitMethodInsn(INVOKEVIRTUAL, "org/tihrc/microj/core/RuntimeExecuter", "getGlobals", "()Ljava/util/Map;", false);
+            mv.visitMethodInsn(INVOKEVIRTUAL, RUN_EXECUTER, "getGlobals", "()L%s;".formatted(MAP), false);
             mv.visitInsn(SWAP);
             mv.visitLdcInsn(name);
             mv.visitInsn(SWAP);
-            mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "put", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", true);
+            mv.visitMethodInsn(INVOKEINTERFACE, MAP, "put", "(L%s;L%s;)L%s;".formatted(OBJECT, OBJECT, OBJECT), true);
             mv.visitInsn(POP);
         }
     }
 
-    private static void emitLoadName(MethodVisitor mv, String name, Map<String, Integer> localSlots, Map<String, Integer> outerSlots, int localsSlot, int closureSlot) {
+    private static void emitLoadName(MethodVisitor mv, String name, Map<String, Integer> localSlots, Set<String> cellVars,
+                                     Map<String, Integer> outerSlots, int localsSlot, int closureSlot) {
         Integer localIndex = localSlots.get(name);
         if (localIndex != null) {
             mv.visitVarInsn(ALOAD, localsSlot);
             pushInt(mv, localIndex);
             mv.visitInsn(AALOAD);
+            if (cellVars.contains(name)) {
+                mv.visitTypeInsn(CHECKCAST, PY_CELL);
+                mv.visitFieldInsn(GETFIELD, PY_CELL, "value", PYOBJECT_DESC);
+            }
             return;
         }
 
@@ -345,36 +404,38 @@ public class JvmCompiler implements Opcodes {
             mv.visitVarInsn(ALOAD, closureSlot);
             pushInt(mv, outerIndex);
             mv.visitInsn(AALOAD);
+            mv.visitTypeInsn(CHECKCAST, PY_CELL);
+            mv.visitFieldInsn(GETFIELD, PY_CELL, "value", PYOBJECT_DESC);
             return;
         }
 
         Label labelFound = new Label();
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitMethodInsn(INVOKEVIRTUAL, "org/tihrc/microj/core/RuntimeExecuter", "getGlobals", "()Ljava/util/Map;", false);
+        mv.visitMethodInsn(INVOKEVIRTUAL, RUN_EXECUTER, "getGlobals", "()L%s;".formatted(MAP), false);
         mv.visitLdcInsn(name);
-        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "get", "(Ljava/lang/Object;)Ljava/lang/Object;", true);
-        mv.visitTypeInsn(CHECKCAST, "org/tihrc/microj/core/PyObject");
+        mv.visitMethodInsn(INVOKEINTERFACE, MAP, "get", "(L%s;)L%s;".formatted(OBJECT, OBJECT), true);
+        mv.visitTypeInsn(CHECKCAST, PY_OBJECT);
         mv.visitInsn(DUP);
         mv.visitJumpInsn(IFNONNULL, labelFound);
         mv.visitInsn(POP);
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitMethodInsn(INVOKEVIRTUAL, "org/tihrc/microj/core/RuntimeExecuter", "getBuiltins", "()Lorg/tihrc/microj/types/PyModule;", false);
+        mv.visitMethodInsn(INVOKEVIRTUAL, RUN_EXECUTER, "getBuiltins", "()L%s;".formatted(PY_MODULE), false);
         mv.visitLdcInsn(name);
-        mv.visitMethodInsn(INVOKEVIRTUAL, "org/tihrc/microj/types/PyModule", "findAttribute", "(Ljava/lang/String;)Lorg/tihrc/microj/core/PyObject;", false);
+        mv.visitMethodInsn(INVOKEVIRTUAL, PY_MODULE, "findAttribute", "(L%s;)L%s;".formatted(STRING, PY_OBJECT), false);
         mv.visitInsn(DUP);
         mv.visitJumpInsn(IFNONNULL, labelFound);
         mv.visitInsn(POP);
-        mv.visitTypeInsn(NEW, "java/lang/IllegalArgumentException");
-        mv.visitInsn(DUP);
-        mv.visitLdcInsn("Name '" + name + "' is not defined");
-        mv.visitMethodInsn(INVOKESPECIAL, "java/lang/IllegalArgumentException", "<init>", "(Ljava/lang/String;)V", false);
-        mv.visitInsn(ATHROW);
+        mv.visitLdcInsn(name);
+        mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "nameError",
+                "(L%s;)L%s;".formatted(STRING, PY_OBJECT), false);
+        mv.visitJumpInsn(GOTO, labelFound);
+
         mv.visitLabel(labelFound);
     }
 
     private static void emitBuildList(MethodVisitor mv, int count, int tempSlot) {
         pushInt(mv, count);
-        mv.visitTypeInsn(ANEWARRAY, "org/tihrc/microj/core/PyObject");
+        mv.visitTypeInsn(ANEWARRAY, PY_OBJECT);
         mv.visitVarInsn(ASTORE, tempSlot);
         for (int i = count - 1; i >= 0; i--) {
             mv.visitVarInsn(ASTORE, tempSlot + 1);
@@ -383,16 +444,16 @@ public class JvmCompiler implements Opcodes {
             mv.visitVarInsn(ALOAD, tempSlot + 1);
             mv.visitInsn(AASTORE);
         }
-        mv.visitTypeInsn(NEW, "org/tihrc/microj/types/collections/PyList");
+        mv.visitTypeInsn(NEW, PY_LIST);
         mv.visitInsn(DUP);
         mv.visitVarInsn(ALOAD, tempSlot);
-        mv.visitMethodInsn(INVOKESPECIAL, "org/tihrc/microj/types/collections/PyList", "<init>", "([Lorg/tihrc/microj/core/PyObject;)V", false);
+        mv.visitMethodInsn(INVOKESPECIAL, PY_LIST, "<init>", "(%s)V".formatted(PYARR_OBJECT), false);
     }
 
     private static void emitBuildClass(MethodVisitor mv, String name, Map<String, Integer> localSlots, int localsSlot, String[] bases){
-        mv.visitTypeInsn(NEW, "org/tihrc/microj/units/FastMap");
+        mv.visitTypeInsn(NEW, FAST_MAP);
         mv.visitInsn(DUP);
-        mv.visitMethodInsn(INVOKESPECIAL, "org/tihrc/microj/units/FastMap", "<init>", "()V", false);
+        mv.visitMethodInsn(INVOKESPECIAL, FAST_MAP, "<init>", "()V", false);
 
         for (var entry : localSlots.entrySet()) {
             mv.visitInsn(DUP);
@@ -400,14 +461,14 @@ public class JvmCompiler implements Opcodes {
             mv.visitVarInsn(ALOAD, localsSlot);
             pushInt(mv, entry.getValue());
             mv.visitInsn(AALOAD);
-            mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "put", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", true);
+            mv.visitMethodInsn(INVOKEINTERFACE, MAP, "put", "(L%s;L%s;)L%s;".formatted(OBJECT, OBJECT, OBJECT), true);
             mv.visitInsn(POP);
         }
 
         mv.visitLdcInsn(name);
         mv.visitInsn(SWAP);
         pushInt(mv, bases.length);
-        mv.visitTypeInsn(ANEWARRAY, "java/lang/String");
+        mv.visitTypeInsn(ANEWARRAY, STRING);
         for (int i = 0; i < bases.length; i++) {
             mv.visitInsn(DUP);
             pushInt(mv, i);
@@ -415,13 +476,13 @@ public class JvmCompiler implements Opcodes {
             mv.visitInsn(AASTORE);
         }
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitMethodInsn(INVOKESTATIC, "org/tihrc/microj/backend/jvm/JvmCompiler", "buildClass",
-                "(Ljava/lang/String;Ljava/util/Map;[Ljava/lang/String;Lorg/tihrc/microj/core/RuntimeExecuter;)Lorg/tihrc/microj/core/PyObject;", false);
+        mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "buildClass",
+                "(L%s;L%s;[L%s;L%s;)L%s;".formatted(STRING, MAP, STRING, RUN_EXECUTER, PY_OBJECT), false);
     }
 
     private static void emitBuildTuple(MethodVisitor mv, int size, int tempSlot) {
         pushInt(mv, size);
-        mv.visitTypeInsn(ANEWARRAY, "org/tihrc/microj/core/PyObject");
+        mv.visitTypeInsn(ANEWARRAY, PY_OBJECT);
         mv.visitVarInsn(ASTORE, tempSlot);
         for (int i = size - 1; i >= 0; i--) {
             mv.visitVarInsn(ASTORE, tempSlot + 1);
@@ -430,16 +491,16 @@ public class JvmCompiler implements Opcodes {
             mv.visitVarInsn(ALOAD, tempSlot + 1);
             mv.visitInsn(AASTORE);
         }
-        mv.visitTypeInsn(NEW, "org/tihrc/microj/types/collections/PyTuple");
+        mv.visitTypeInsn(NEW, PY_TUPLE);
         mv.visitInsn(DUP);
         mv.visitVarInsn(ALOAD, tempSlot);
-        mv.visitMethodInsn(INVOKESPECIAL, "org/tihrc/microj/types/collections/PyTuple", "<init>", "([Lorg/tihrc/microj/core/PyObject;)V", false);
+        mv.visitMethodInsn(INVOKESPECIAL, PY_TUPLE, "<init>", "([L%s;)V".formatted(PY_OBJECT), false);
     }
 
     private static void emitBuildMap(MethodVisitor mv, int size, int tempSlot) {
-        mv.visitTypeInsn(NEW, "org/tihrc/microj/types/collections/PyDict");
+        mv.visitTypeInsn(NEW, PY_DICT);
         mv.visitInsn(DUP);
-        mv.visitMethodInsn(INVOKESPECIAL, "org/tihrc/microj/types/collections/PyDict", "<init>", "()V", false);
+        mv.visitMethodInsn(INVOKESPECIAL, PY_DICT, "<init>", "()V", false);
         mv.visitVarInsn(ASTORE, tempSlot);
 
         for (int i = 0; i < size; i++) {
@@ -448,7 +509,7 @@ public class JvmCompiler implements Opcodes {
             mv.visitVarInsn(ALOAD, tempSlot);
             mv.visitVarInsn(ALOAD, tempSlot + 2);
             mv.visitVarInsn(ALOAD, tempSlot + 1);
-            mv.visitMethodInsn(INVOKEVIRTUAL, "org/tihrc/microj/types/collections/PyDict", "put", "(Lorg/tihrc/microj/core/PyObject;Lorg/tihrc/microj/core/PyObject;)V", false);
+            mv.visitMethodInsn(INVOKEVIRTUAL, PY_DICT, "put", "(L%s;L%s;)V".formatted(PY_OBJECT, PY_OBJECT), false);
         }
         mv.visitVarInsn(ALOAD, tempSlot);
     }
@@ -457,8 +518,8 @@ public class JvmCompiler implements Opcodes {
         mv.visitVarInsn(ALOAD, 1);
         mv.visitInsn(SWAP);
         pushInt(mv, count);
-        mv.visitMethodInsn(INVOKESTATIC, "org/tihrc/microj/backend/jvm/JvmCompiler", "unpack",
-                "(Lorg/tihrc/microj/core/RuntimeExecuter;Lorg/tihrc/microj/core/PyObject;I)[Lorg/tihrc/microj/core/PyObject;", false);
+        mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "unpack",
+                "(L%s;L%s;I)[L%s;".formatted(RUN_EXECUTER, PY_OBJECT, PY_OBJECT), false);
         mv.visitVarInsn(ASTORE, tempSlot);
 
         for (int i = 0; i < count; i++) {
@@ -477,8 +538,8 @@ public class JvmCompiler implements Opcodes {
         mv.visitVarInsn(ALOAD, tempSlot);
         mv.visitVarInsn(ALOAD, tempSlot + 1);
         mv.visitVarInsn(ALOAD, tempSlot + 2);
-        mv.visitMethodInsn(INVOKESTATIC, "org/tihrc/microj/backend/jvm/JvmCompiler", "storeSubscript",
-                "(Lorg/tihrc/microj/core/RuntimeExecuter;Lorg/tihrc/microj/core/PyObject;Lorg/tihrc/microj/core/PyObject;Lorg/tihrc/microj/core/PyObject;)V", false);
+        mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "storeSubscript",
+                "(L%s;L%s;L%s;L%s;)V".formatted(RUN_EXECUTER, PY_OBJECT, PY_OBJECT, PY_OBJECT), false);
     }
 
     private static void emitBinaryOperator(MethodVisitor mv, BinaryOperator operator) {
@@ -500,8 +561,8 @@ public class JvmCompiler implements Opcodes {
     private static void emitUnaryOperator(MethodVisitor mv, UnaryOperator operator) {
         switch (operator) {
             case NEG -> {
-                mv.visitTypeInsn(CHECKCAST, "org/tihrc/microj/core/Protocols$PyNumber");
-                mv.visitMethodInsn(INVOKEINTERFACE, "org/tihrc/microj/core/Protocols$PyNumber", "pyDanderNeg", "()Lorg/tihrc/microj/core/PyObject;", true);
+                mv.visitTypeInsn(CHECKCAST, PYP_NUMBER);
+                mv.visitMethodInsn(INVOKEINTERFACE, PYP_NUMBER, "pyDanderNeg", "()L%s;".formatted(PY_OBJECT), true);
             }
             case NOT -> emitUnaryNot(mv);
         }
@@ -509,15 +570,15 @@ public class JvmCompiler implements Opcodes {
 
     private static void emitBinarySubscript(MethodVisitor mv) {
         mv.visitInsn(SWAP);
-        mv.visitTypeInsn(CHECKCAST, "org/tihrc/microj/core/Protocols$PyContainer");
+        mv.visitTypeInsn(CHECKCAST, PYP_CONTAINER);
         mv.visitInsn(SWAP);
-        mv.visitMethodInsn(INVOKEINTERFACE, "org/tihrc/microj/core/Protocols$PyContainer", "pyDanderGetItem", "(Lorg/tihrc/microj/core/PyObject;)Lorg/tihrc/microj/core/PyObject;", true);
+        mv.visitMethodInsn(INVOKEINTERFACE, PYP_CONTAINER, "pyDanderGetItem", "(L%s;)L%s;".formatted(PY_OBJECT, PY_OBJECT), true);
     }
 
     private static void emitBinaryIn(MethodVisitor mv, boolean inverted) {
-        mv.visitTypeInsn(CHECKCAST, "org/tihrc/microj/core/Protocols$PyContainer");
+        mv.visitTypeInsn(CHECKCAST, PYP_CONTAINER);
         mv.visitInsn(SWAP);
-        mv.visitMethodInsn(INVOKEINTERFACE, "org/tihrc/microj/core/Protocols$PyContainer", "pyDanderContains", "(Lorg/tihrc/microj/core/PyObject;)Lorg/tihrc/microj/core/PyObject;", true);
+        mv.visitMethodInsn(INVOKEINTERFACE, PYP_CONTAINER, "pyDanderContains", "(L%s;)L%s;".formatted(PY_OBJECT, PY_OBJECT), true);
         if (inverted) emitUnaryNot(mv);
     }
 
@@ -527,22 +588,22 @@ public class JvmCompiler implements Opcodes {
 
         mv.visitInsn(DUP2);
         mv.visitInsn(POP);
-        mv.visitTypeInsn(INSTANCEOF, "org/tihrc/microj/core/Protocols$PyNumber");
+        mv.visitTypeInsn(INSTANCEOF, PYP_NUMBER);
         mv.visitJumpInsn(IFNE, isNumber);
         mv.visitVarInsn(ALOAD, 1);
         mv.visitLdcInsn(dunderName);
-        mv.visitMethodInsn(INVOKESTATIC, "org/tihrc/microj/backend/jvm/JvmCompiler", "overloadOperator",
-                "(Lorg/tihrc/microj/core/PyObject;Lorg/tihrc/microj/core/PyObject;Lorg/tihrc/microj/core/RuntimeExecuter;Ljava/lang/String;)Lorg/tihrc/microj/core/PyObject;", false);
+        mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "overloadOperator",
+                "(L%s;L%s;L%s;L%s;)L%s;".formatted(PY_OBJECT, PY_OBJECT, RUN_EXECUTER, STRING, PY_OBJECT), false);
         mv.visitJumpInsn(GOTO, end);
 
         mv.visitLabel(isNumber);
         mv.visitInsn(SWAP);
-        mv.visitTypeInsn(CHECKCAST, "org/tihrc/microj/core/Protocols$PyNumber");
+        mv.visitTypeInsn(CHECKCAST, PYP_NUMBER);
         mv.visitInsn(SWAP);
-        mv.visitMethodInsn(INVOKEINTERFACE, "org/tihrc/microj/core/Protocols$PyNumber", methodName,
-                "(Lorg/tihrc/microj/core/PyObject;)Lorg/tihrc/microj/core/PyObject;", true);
-        mv.visitMethodInsn(INVOKESTATIC, "org/tihrc/microj/backend/jvm/JvmCompiler", "checkNotImplemented",
-                "(Lorg/tihrc/microj/core/PyObject;)Lorg/tihrc/microj/core/PyObject;", false);
+        mv.visitMethodInsn(INVOKEINTERFACE, PYP_NUMBER, methodName,
+                "(L%s;)L%s;".formatted(PY_OBJECT, PY_OBJECT), true);
+        mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "checkNotImplemented",
+                "(L%s;)L%s;".formatted(PY_OBJECT, PY_OBJECT), false);
         mv.visitLabel(end);
     }
 
@@ -552,65 +613,91 @@ public class JvmCompiler implements Opcodes {
 
         mv.visitInsn(DUP2);
         mv.visitInsn(POP);
-        mv.visitTypeInsn(INSTANCEOF, "org/tihrc/microj/core/Protocols$PyComparable");
+        mv.visitTypeInsn(INSTANCEOF, PYP_COMPARABLE);
         mv.visitJumpInsn(IFNE, isComp);
 
         mv.visitVarInsn(ALOAD, 1);
         mv.visitLdcInsn(dunderName);
-        mv.visitMethodInsn(INVOKESTATIC, "org/tihrc/microj/backend/jvm/JvmCompiler", "overloadOperator",
-                "(Lorg/tihrc/microj/core/PyObject;Lorg/tihrc/microj/core/PyObject;Lorg/tihrc/microj/core/RuntimeExecuter;Ljava/lang/String;)Lorg/tihrc/microj/core/PyObject;", false);
+        mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "overloadOperator",
+                "(L%s;L%s;L%s;L%s;)L%s;".formatted(PY_OBJECT, PY_OBJECT, RUN_EXECUTER, STRING, PY_OBJECT), false);
         mv.visitJumpInsn(GOTO, end);
 
         mv.visitLabel(isComp);
         mv.visitInsn(SWAP);
-        mv.visitTypeInsn(CHECKCAST, "org/tihrc/microj/core/Protocols$PyComparable");
+        mv.visitTypeInsn(CHECKCAST, PYP_COMPARABLE);
         mv.visitInsn(SWAP);
-        mv.visitMethodInsn(INVOKEINTERFACE, "org/tihrc/microj/core/Protocols$PyComparable", methodName,
-                "(Lorg/tihrc/microj/core/PyObject;)Lorg/tihrc/microj/core/PyObject;", true);
-        mv.visitMethodInsn(INVOKESTATIC, "org/tihrc/microj/backend/jvm/JvmCompiler", "checkNotImplemented",
-                "(Lorg/tihrc/microj/core/PyObject;)Lorg/tihrc/microj/core/PyObject;", false);
+        mv.visitMethodInsn(INVOKEINTERFACE, PYP_COMPARABLE, methodName,
+                "(L%s;)L%s;".formatted(PY_OBJECT, PY_OBJECT), true);
+        mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "checkNotImplemented",
+                "(L%s;)L%s;".formatted(PY_OBJECT, PY_OBJECT), false);
 
         mv.visitLabel(end);
     }
 
     private static void emitUnaryNot(MethodVisitor mv) {
-        mv.visitTypeInsn(CHECKCAST, "org/tihrc/microj/core/Protocols$PyComparable");
-        mv.visitMethodInsn(INVOKEINTERFACE, "org/tihrc/microj/core/Protocols$PyComparable", "pyDanderBool", "()Z", true);
+        mv.visitTypeInsn(CHECKCAST, PYP_COMPARABLE);
+        mv.visitMethodInsn(INVOKEINTERFACE, PYP_COMPARABLE, "pyDanderBool", "()Z", true);
         Label labelTrue = new Label();
         Label labelEnd = new Label();
         mv.visitJumpInsn(IFNE, labelTrue);
-        mv.visitFieldInsn(GETSTATIC, "org/tihrc/microj/types/primitives/PyBool", "TRUE", "Lorg/tihrc/microj/types/primitives/PyBool;");
+        mv.visitFieldInsn(GETSTATIC, PY_BOOL, "TRUE", "L%s;".formatted(PY_BOOL));
         mv.visitJumpInsn(GOTO, labelEnd);
         mv.visitLabel(labelTrue);
-        mv.visitFieldInsn(GETSTATIC, "org/tihrc/microj/types/primitives/PyBool", "FALSE", "Lorg/tihrc/microj/types/primitives/PyBool;");
+        mv.visitFieldInsn(GETSTATIC, PY_BOOL, "FALSE", "L%s;".formatted(PY_BOOL));
         mv.visitLabel(labelEnd);
     }
 
     private static void emitPopJumpIfFalse(MethodVisitor mv, Map<Integer, Label> jumpTargets, int target) {
-        mv.visitTypeInsn(CHECKCAST, "org/tihrc/microj/core/Protocols$PyComparable");
-        mv.visitMethodInsn(INVOKEINTERFACE, "org/tihrc/microj/core/Protocols$PyComparable", "pyDanderBool", "()Z", true);
+        mv.visitTypeInsn(CHECKCAST, PYP_COMPARABLE);
+        mv.visitMethodInsn(INVOKEINTERFACE, PYP_COMPARABLE, "pyDanderBool", "()Z", true);
         mv.visitJumpInsn(IFEQ, jumpTargets.get(target));
     }
 
-    private void emitMakeFunction(ClassWriter cw, String internalClassName, List<Instruction> body, MethodVisitor mv, List<String> params, String name, String starArg, String kwArg, Map<String, Integer> outerSlots, int localsSlot, int tempSlot) {
-        String funcMethodName = "func_" + Math.abs(body.hashCode());
-        compileFunctionBody(cw, internalClassName, funcMethodName, body, params, starArg, kwArg, outerSlots);
+    private void emitMakeFunction(ClassWriter cw, String internalClassName, List<Instruction> body, MethodVisitor mv,
+                                  List<String> params, String name, String starArg, String kwArg, List<String> freeVars,
+                                  Map<String, Integer> localSlots, Map<String, Integer> outerSlots,
+                                  Set<String> nonlocals, int localsSlot, int closureSlot, int tempSlot) {
+        String funcMethodName = "func$" + FUNC_COUNTER.incrementAndGet();
+        List<String> included = new ArrayList<>();
+        for (String f : freeVars) {
+            if (localSlots.containsKey(f) || outerSlots.containsKey(f)) included.add(f);
+        }
+
+        compileFunctionBody(cw, internalClassName, funcMethodName, body, params, starArg, kwArg, included);
         mv.visitVarInsn(ASTORE, tempSlot + 2);
 
-        mv.visitTypeInsn(NEW, "org/tihrc/microj/backend/jvm/JitFunction");
+        pushInt(mv, included.size());
+        mv.visitTypeInsn(ANEWARRAY, PY_OBJECT);
+        mv.visitVarInsn(ASTORE, tempSlot + 4);
+
+        for (int j = 0; j < included.size(); j++) {
+            String f = included.get(j);
+            Integer localIdx = localSlots.get(f);
+            mv.visitVarInsn(ALOAD, tempSlot + 4);
+            pushInt(mv, j);
+            if (localIdx != null) {
+                mv.visitVarInsn(ALOAD, localsSlot);
+                pushInt(mv, localIdx);
+                mv.visitInsn(AALOAD);
+            } else {
+                mv.visitVarInsn(ALOAD, closureSlot);
+                pushInt(mv, outerSlots.get(f));
+                mv.visitInsn(AALOAD);
+            }
+            mv.visitTypeInsn(CHECKCAST, PY_CELL);
+            mv.visitInsn(AASTORE);
+        }
+
+        mv.visitTypeInsn(NEW, JIT_FUNCTION);
         mv.visitInsn(DUP);
         mv.visitLdcInsn(name);
-
-        mv.visitLdcInsn(new Handle(Opcodes.H_INVOKEVIRTUAL, internalClassName, funcMethodName,
-                "(" + CTX_DESC + "[Lorg/tihrc/microj/core/PyObject;Lorg/tihrc/microj/core/PyObject;[Lorg/tihrc/microj/core/PyObject;[Ljava/lang/String;[Lorg/tihrc/microj/core/PyObject;)" + PYOBJECT_DESC, false));
-
+        mv.visitLdcInsn(new Handle(Opcodes.H_INVOKEVIRTUAL, internalClassName, funcMethodName, FUNC_METHOD_DESC, false));
         mv.visitVarInsn(ALOAD, 0);
-        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/invoke/MethodHandle", "bindTo", "(Ljava/lang/Object;)Ljava/lang/invoke/MethodHandle;", false);
-
-        mv.visitVarInsn(ALOAD, localsSlot);
+        mv.visitMethodInsn(INVOKEVIRTUAL, METHOD_HANDLE, "bindTo", "(L%s;)L%s;".formatted(OBJECT, METHOD_HANDLE), false);
+        mv.visitVarInsn(ALOAD, tempSlot + 4);
         mv.visitVarInsn(ALOAD, tempSlot + 2);
-
-        mv.visitMethodInsn(INVOKESPECIAL, "org/tihrc/microj/backend/jvm/JitFunction", "<init>", "(Ljava/lang/String;Ljava/lang/invoke/MethodHandle;[Lorg/tihrc/microj/core/PyObject;Lorg/tihrc/microj/core/PyObject;)V", false);
+        mv.visitMethodInsn(INVOKESPECIAL, JIT_FUNCTION, "<init>",
+                "(L%s;L%s;[L%s;L%s;)V".formatted(STRING, METHOD_HANDLE, PY_OBJECT, PY_OBJECT), false);
     }
 
     private static void emitCallFunction(MethodVisitor mv, int posCount, String[] kwNames, int tempSlot) {
@@ -619,11 +706,11 @@ public class JvmCompiler implements Opcodes {
         mv.visitVarInsn(ASTORE, tempSlot + 3);
 
         if (kwCount == 0) {
-            mv.visitFieldInsn(GETSTATIC, "org/tihrc/microj/backend/jvm/JitFunction", "EMPTY_KW_VALS", "[Lorg/tihrc/microj/core/PyObject;");
+            mv.visitFieldInsn(GETSTATIC, JIT_FUNCTION, "EMPTY_KW_VALS", "[L%s;".formatted(PY_OBJECT));
             mv.visitVarInsn(ASTORE, tempSlot + 1);
         } else {
             pushInt(mv, kwCount);
-            mv.visitTypeInsn(ANEWARRAY, "org/tihrc/microj/core/PyObject");
+            mv.visitTypeInsn(ANEWARRAY, PY_OBJECT);
             mv.visitVarInsn(ASTORE, tempSlot + 1);
             for (int j = kwCount - 1; j >= 0; j--) {
                 mv.visitVarInsn(ASTORE, tempSlot + 2);
@@ -635,11 +722,11 @@ public class JvmCompiler implements Opcodes {
         }
 
         if (posCount == 0) {
-            mv.visitFieldInsn(GETSTATIC, "org/tihrc/microj/backend/jvm/JitFunction", "EMPTY_ARGS", "[Lorg/tihrc/microj/core/PyObject;");
+            mv.visitFieldInsn(GETSTATIC, JIT_FUNCTION, "EMPTY_ARGS", "[L%s;".formatted(PY_OBJECT));
             mv.visitVarInsn(ASTORE, tempSlot);
         } else {
             pushInt(mv, posCount);
-            mv.visitTypeInsn(ANEWARRAY, "org/tihrc/microj/core/PyObject");
+            mv.visitTypeInsn(ANEWARRAY, PY_OBJECT);
             mv.visitVarInsn(ASTORE, tempSlot);
             for (int j = posCount - 1; j >= 0; j--) {
                 mv.visitVarInsn(ASTORE, tempSlot + 2);
@@ -651,16 +738,16 @@ public class JvmCompiler implements Opcodes {
         }
 
         mv.visitVarInsn(ALOAD, tempSlot + 3);
-        mv.visitTypeInsn(CHECKCAST, "org/tihrc/microj/core/Protocols$PyCallable");
+        mv.visitTypeInsn(CHECKCAST, PYP_CALLABLE);
 
         mv.visitVarInsn(ALOAD, 1);
         mv.visitVarInsn(ALOAD, tempSlot);
 
         if (kwNames.length == 0) {
-            mv.visitFieldInsn(GETSTATIC, "org/tihrc/microj/backend/jvm/JitFunction", "EMPTY_KW_NAMES", "[Ljava/lang/String;");
+            mv.visitFieldInsn(GETSTATIC, JIT_FUNCTION, "EMPTY_KW_NAMES", "[L%s;".formatted(STRING));
         } else {
             pushInt(mv, kwNames.length);
-            mv.visitTypeInsn(ANEWARRAY, "java/lang/String");
+            mv.visitTypeInsn(ANEWARRAY, STRING);
             for (int j = 0; j < kwNames.length; j++) {
                 mv.visitInsn(DUP);
                 pushInt(mv, j);
@@ -671,30 +758,80 @@ public class JvmCompiler implements Opcodes {
 
         mv.visitVarInsn(ALOAD, tempSlot + 1);
 
-        mv.visitMethodInsn(INVOKEINTERFACE, "org/tihrc/microj/core/Protocols$PyCallable", "pyDanderCallFast",
-                "(" + CTX_DESC + "[Lorg/tihrc/microj/core/PyObject;[Ljava/lang/String;[Lorg/tihrc/microj/core/PyObject;)" + PYOBJECT_DESC, true);
+        mv.visitMethodInsn(INVOKEINTERFACE, PYP_CALLABLE, "pyDanderCallFast",
+                "(" + CTX_DESC + "[L%s;[L%s;[L%s;)".formatted(PY_OBJECT, STRING, PY_OBJECT) + PYOBJECT_DESC, true);
     }
 
-    private static void emitMakeGenerator(MethodVisitor mv, String internalClassName, String name, int codeIndex, int localsSlot) {
+    private static void emitMakeGenerator(MethodVisitor mv, String internalClassName, String name, int codeIndex,
+                                          int localsSlot, int closureSlot, int tempSlot, List<String> params,
+                                          String starArg, String kwArg, List<String> freeVars,
+                                          Map<String, Integer> localSlots, Map<String, Integer> outerSlots) {
         mv.visitVarInsn(ALOAD, 1);
         emitLoadConst(mv, internalClassName, codeIndex);
         mv.visitLdcInsn(name);
         mv.visitVarInsn(ALOAD, 0);
-        mv.visitFieldInsn(GETFIELD, internalClassName, "constants", "[Lorg/tihrc/microj/core/PyObject;");
+        mv.visitFieldInsn(GETFIELD, internalClassName, "constants", PYARR_OBJECT);
 
-        mv.visitMethodInsn(INVOKESTATIC, "org/tihrc/microj/backend/jvm/JvmCompiler", "makeGeneratorFunction",
-                "(Lorg/tihrc/microj/core/RuntimeExecuter;Lorg/tihrc/microj/core/PyObject;Ljava/lang/String;[Lorg/tihrc/microj/core/PyObject;)Lorg/tihrc/microj/core/PyObject;", false);
+        pushInt(mv, params.size());
+        mv.visitTypeInsn(ANEWARRAY, STRING);
+        for (int j = 0; j < params.size(); j++) {
+            mv.visitInsn(DUP);
+            pushInt(mv, j);
+            mv.visitLdcInsn(params.get(j));
+            mv.visitInsn(AASTORE);
+        }
+
+        if (starArg != null) mv.visitLdcInsn(starArg); else mv.visitInsn(ACONST_NULL);
+        if (kwArg != null) mv.visitLdcInsn(kwArg); else mv.visitInsn(ACONST_NULL);
+
+        pushInt(mv, freeVars.size());
+        mv.visitTypeInsn(ANEWARRAY, STRING);
+        for (int j = 0; j < freeVars.size(); j++) {
+            mv.visitInsn(DUP);
+            pushInt(mv, j);
+            mv.visitLdcInsn(freeVars.get(j));
+            mv.visitInsn(AASTORE);
+        }
+
+        List<String> included = new ArrayList<>();
+        for (String f : freeVars) {
+            if (localSlots.containsKey(f) || outerSlots.containsKey(f)) included.add(f);
+        }
+
+        pushInt(mv, included.size());
+        mv.visitTypeInsn(ANEWARRAY, PY_OBJECT);
+        mv.visitVarInsn(ASTORE, tempSlot + 4);
+        for (int j = 0; j < included.size(); j++) {
+            String f = included.get(j);
+            Integer localIdx = localSlots.get(f);
+            mv.visitVarInsn(ALOAD, tempSlot + 4);
+            pushInt(mv, j);
+            if (localIdx != null) {
+                mv.visitVarInsn(ALOAD, localsSlot);
+                pushInt(mv, localIdx);
+                mv.visitInsn(AALOAD);
+            } else {
+                mv.visitVarInsn(ALOAD, closureSlot);
+                pushInt(mv, outerSlots.get(f));
+                mv.visitInsn(AALOAD);
+            }
+            mv.visitTypeInsn(CHECKCAST, PY_CELL);
+            mv.visitInsn(AASTORE);
+        }
+        mv.visitVarInsn(ALOAD, tempSlot + 4);
+        mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "makeGeneratorFunction",
+                "(L%s;L%s;L%s;L%s;[L%s;%s;L%s;L%s;%s;[L%s;)L%s;".formatted(PY_OBJECT, RUN_EXECUTER, PY_OBJECT, STRING, PY_OBJECT, STRING_ARR, STRING, STRING, STRING_ARR, PY_OBJECT, PY_OBJECT), false);
     }
 
     private static void emitGetIter(MethodVisitor mv) {
         mv.visitVarInsn(ALOAD, 1);
         mv.visitInsn(SWAP);
-        mv.visitMethodInsn(INVOKESTATIC, "org/tihrc/microj/backend/jvm/JvmCompiler", "getIter", "(Lorg/tihrc/microj/core/RuntimeExecuter;Lorg/tihrc/microj/core/PyObject;)Lorg/tihrc/microj/core/PyObject;", false);
+        mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "getIter", "(L%s;L%s;)L%s;".formatted(RUN_EXECUTER, PY_OBJECT, PY_OBJECT), false);
     }
 
     private static void emitForIter(MethodVisitor mv, Map<Integer, Label> jumpTargets, int target) {
         mv.visitInsn(DUP);
-        mv.visitMethodInsn(INVOKESTATIC, "org/tihrc/microj/backend/jvm/JvmCompiler", "forIterNext", "(Lorg/tihrc/microj/core/PyObject;)Lorg/tihrc/microj/core/PyObject;", false);
+        mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "forIterNext", "(L%s;)L%s;".formatted(PY_OBJECT, PY_OBJECT), false);
 
         mv.visitInsn(DUP);
         Label notNull = new Label();
@@ -715,8 +852,8 @@ public class JvmCompiler implements Opcodes {
         } else {
             mv.visitInsn(ACONST_NULL);
         }
-        mv.visitMethodInsn(INVOKESTATIC, "org/tihrc/microj/backend/jvm/JvmCompiler", "doImport",
-                "(Lorg/tihrc/microj/core/RuntimeExecuter;Ljava/lang/String;Ljava/lang/String;)V", false);
+        mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "doImport",
+                "(L%s;L%s;L%s;)V".formatted(RUN_EXECUTER, STRING, STRING), false);
     }
 
     private static void emitImportFrom(MethodVisitor mv, String moduleName, List<String> names){
@@ -724,7 +861,7 @@ public class JvmCompiler implements Opcodes {
         mv.visitLdcInsn(moduleName);
 
         pushInt(mv, names.size());
-        mv.visitTypeInsn(ANEWARRAY, "java/lang/String");
+        mv.visitTypeInsn(ANEWARRAY, STRING);
         for (int j = 0; j < names.size(); j++) {
             mv.visitInsn(DUP);
             pushInt(mv, j);
@@ -732,28 +869,35 @@ public class JvmCompiler implements Opcodes {
             mv.visitInsn(AASTORE);
         }
 
-        mv.visitMethodInsn(INVOKESTATIC, "org/tihrc/microj/backend/jvm/JvmCompiler", "doImportFrom",
-                "(Lorg/tihrc/microj/core/RuntimeExecuter;Ljava/lang/String;[Ljava/lang/String;)V", false);
+        mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "doImportFrom",
+                "(L%s;L%s;[L%s;)V".formatted(RUN_EXECUTER, STRING, STRING), false);
     }
 
     private static void emitCheckException(MethodVisitor mv, String typeName, int target, Map<Integer, Label> jumpTargets) {
         if (typeName == null) {
-            mv.visitFieldInsn(GETFIELD, "org/tihrc/microj/core/exceptions/PyUnwind", "exception", "Lorg/tihrc/microj/core/exceptions/PyBaseException;");
+            mv.visitFieldInsn(GETFIELD, PY_UNWIND, "exception", "L%s;".formatted(PY_BASE_EXCEPTION));
             mv.visitJumpInsn(GOTO, jumpTargets.get(target));
         } else {
             mv.visitInsn(DUP);
-            mv.visitFieldInsn(GETFIELD, "org/tihrc/microj/core/exceptions/PyUnwind", "exception", "Lorg/tihrc/microj/core/exceptions/PyBaseException;");
-            mv.visitTypeInsn(INSTANCEOF, "org/tihrc/microj/core/exceptions/Exceptions$Py" + typeName);
+            mv.visitFieldInsn(GETFIELD, PY_UNWIND, "exception", "L%s;".formatted(PY_BASE_EXCEPTION));
+            mv.visitTypeInsn(INSTANCEOF, "%score/exceptions/Exceptions$Py%s".formatted(PREFIX, typeName));
 
             Label next = new Label();
             mv.visitJumpInsn(IFEQ, next);
 
             mv.visitInsn(POP);
-            mv.visitFieldInsn(GETFIELD, "org/tihrc/microj/core/exceptions/PyUnwind", "exception", "Lorg/tihrc/microj/core/exceptions/PyBaseException;");
+            mv.visitFieldInsn(GETFIELD, PY_UNWIND, "exception", "L%s;".formatted(PY_BASE_EXCEPTION));
             mv.visitJumpInsn(GOTO, jumpTargets.get(target));
 
             mv.visitLabel(next);
         }
+    }
+
+    private static void emitRaiseException(MethodVisitor mv) {
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitInsn(SWAP);
+        mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "raiseException",
+                "(L%s;L%s;)V".formatted(RUN_EXECUTER, PY_OBJECT), false);
     }
 
     private static void emitDeleteName(MethodVisitor mv, String name, Map<String, Integer> localSlots, int localsSlot) {
@@ -765,16 +909,16 @@ public class JvmCompiler implements Opcodes {
             mv.visitInsn(AASTORE);
         } else {
             mv.visitVarInsn(ALOAD, 1);
-            mv.visitMethodInsn(INVOKEVIRTUAL, "org/tihrc/microj/core/RuntimeExecuter", "getGlobals", "()Ljava/util/Map;", false);
+            mv.visitMethodInsn(INVOKEVIRTUAL, RUN_EXECUTER, "getGlobals", "()L%s;".formatted(OBJECT), false);
             mv.visitLdcInsn(name);
-            mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "remove", "(Ljava/lang/Object;)Ljava/lang/Object;", true);
+            mv.visitMethodInsn(INVOKEINTERFACE, MAP, "remove", "(L%s;)L%s;".formatted(OBJECT, OBJECT), true);
             mv.visitInsn(POP);
         }
     }
 
     private static void emitAssert(MethodVisitor mv) {
-        mv.visitMethodInsn(INVOKESTATIC, "org/tihrc/microj/backend/jvm/JvmCompiler", "assertFail",
-                "(Lorg/tihrc/microj/core/PyObject;Lorg/tihrc/microj/core/PyObject;)V", false);
+        mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "assertFail",
+                "(L%s;L%s;)V".formatted(PY_OBJECT, PY_OBJECT), false);
     }
 
     private static void pushInt(MethodVisitor mv, int val) {
@@ -801,9 +945,14 @@ public class JvmCompiler implements Opcodes {
     }
 
     @SuppressWarnings("unused")
-    public static PyObject makeGeneratorFunction(RuntimeExecuter ctx, PyObject codeObj, String name, PyObject[] constants) {
+    public static PyObject makeGeneratorFunction(PyObject defaults, RuntimeExecuter ctx, PyObject codeObj, String name,
+                                                 PyObject[] constants, String[] params, String starArg,
+                                                 String kwArg, String[] freeVars, PyObject[] closureArray) {
         PyCode code = (PyCode) codeObj;
-        return new PyGeneratorFunc(name, code.body, List.of(), constants);
+        java.util.Map<String, PyObject> closureMap = new java.util.HashMap<>();
+        for (int i = 0; i < freeVars.length; i++)
+            closureMap.put(freeVars[i], closureArray[i]);
+        return new PyGeneratorFunc(name, code.body, List.of(params), starArg, kwArg, closureMap, defaults, constants);
     }
 
     @SuppressWarnings("unused")
@@ -919,7 +1068,7 @@ public class JvmCompiler implements Opcodes {
         }
     }
 
-    @SuppressWarnings("unused")
+    @SuppressWarnings({"unused", "UnusedReturnValue"})
     public static PyObject[] bindArgs(RuntimeExecuter ctx, PyObject[] locals, PyObject defaults, PyObject[] args, String[] kwNames, PyObject[] kwValues, String[] params, String starArg, String kwArg) {
         int paramCount = params.length;
         int starOffset = starArg != null ? 1 : 0;
@@ -981,5 +1130,22 @@ public class JvmCompiler implements Opcodes {
         }
 
         return locals;
+    }
+
+    @SuppressWarnings("unused")
+    public static PyObject nameError(String name) {
+        return new Exceptions.PyNameError("name '" + name + "' is not defined").raise();
+    }
+
+    @SuppressWarnings("unused")
+    public static void raiseException(RuntimeExecuter ctx, PyObject exc) {
+        if (exc instanceof PyClass) {
+            exc = ((PyClass) exc).pyDanderCallFast(ctx, new PyObject[0], JitFunction.EMPTY_KW_NAMES, JitFunction.EMPTY_KW_VALS);
+        }
+        if (exc instanceof PyBaseException pyExc) {
+            pyExc.raise();
+        } else {
+            throw new PyUnwind(new Exceptions.PyTypeError("exceptions must derive from BaseException"));
+        }
     }
 }

@@ -208,6 +208,16 @@ public interface MicroJListener extends ParseTreeListener {
 	 */
 	void exitExceptClause(MicroJParser.ExceptClauseContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link MicroJParser#raiseStatement}.
+	 * @param ctx the parse tree
+	 */
+	void enterRaiseStatement(MicroJParser.RaiseStatementContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MicroJParser#raiseStatement}.
+	 * @param ctx the parse tree
+	 */
+	void exitRaiseStatement(MicroJParser.RaiseStatementContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link MicroJParser#ifStatement}.
 	 * @param ctx the parse tree
 	 */

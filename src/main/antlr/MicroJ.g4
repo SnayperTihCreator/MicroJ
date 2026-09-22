@@ -11,6 +11,7 @@ statement: simpleStatement
     | forStatement
     | importStatement
     | tryStatement
+    | raiseStatement
     | classDef
     | withStatement
     | delStatement
@@ -50,6 +51,7 @@ withStatement: WITH expr (AS NAME)? COLON NEWLINE block;
 delStatement: DEL targetList NEWLINE;
 assertStatement: ASSERT expr (COMMA expr)? NEWLINE;
 exceptClause: NAME (AS NAME)? | AS NAME;
+raiseStatement: RAISE expr? NEWLINE;
 
 ifStatement: IF expr COLON NEWLINE block
            (ELIF expr COLON NEWLINE block)*
@@ -142,6 +144,7 @@ CONTINUE: 'continue';
 TRY: 'try';
 EXCEPT: 'except';
 FINALLY: 'finally';
+RAISE: 'raise';
 PASS: 'pass';
 WITH: 'with';
 DEL: 'del';

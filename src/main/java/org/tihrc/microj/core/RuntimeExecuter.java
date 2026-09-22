@@ -58,6 +58,7 @@ public class RuntimeExecuter {
         return PyNone.INSTANCE;
     }
 
+    @SuppressWarnings("UnusedReturnValue")
     public PyObject run(List<Instruction> code) {
         return run(new InstructionGenerator.CompiledScript(code, new PyObject[0]));
     }
@@ -115,7 +116,6 @@ public class RuntimeExecuter {
                     continue;
                 }
                 if (task.callback() != null) task.callback().accept(PyNone.INSTANCE);
-                else if (!isEmpty()) getCurrentFrame().stack.push(PyNone.INSTANCE);
 
                 frame.clean();
                 framePool.offerFirst(frame);
@@ -153,7 +153,7 @@ public class RuntimeExecuter {
         return executedInstructions;
     }
 
-    private PyObject raised(PyBaseException e) {
+    public PyObject raised(PyBaseException e) {
         if (e instanceof BaseExceptions.PySystemExit systemExit) {
             if (systemExit.getExitCode() == 0)
                 return PyNone.INSTANCE;
