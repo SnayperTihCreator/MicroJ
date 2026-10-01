@@ -1,11 +1,12 @@
 package org.tihrc.microj.core;
 
 import org.tihrc.microj.core.exceptions.Exceptions;
-import org.tihrc.microj.types.PyFunction;
-import org.tihrc.microj.types.collections.PyString;
+import org.tihrc.microj.types.callables.PyFunction;
+import org.tihrc.microj.types.core.PyNone;
+import org.tihrc.microj.types.core.PyNotImplemented;
+import org.tihrc.microj.types.primitives.PyString;
 import org.tihrc.microj.types.primitives.PyBool;
 import org.tihrc.microj.types.primitives.PyInt;
-import org.tihrc.microj.types.primitives.PyNone;
 import org.tihrc.microj.units.FastMap;
 import org.tihrc.microj.units.SmartInt;
 
@@ -190,7 +191,7 @@ public final class PyProtocolFacade {
         }
         PyObject res = dispatch(obj, null, null, "__bool__", vm, null, null);
         if (res != null) {
-            if (res instanceof PyBool b) return b.value;
+            if (res instanceof PyBool b) return b.pyDanderBool();
             return res != PyNone.INSTANCE;
         }
         // Fallback: __len__

@@ -1,4 +1,4 @@
-package org.tihrc.microj.types;
+package org.tihrc.microj.types.objects;
 
 import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.transforms.PyExport;

@@ -5,6 +5,7 @@ import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.transforms.PyExport;
 import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.types.primitives.PyBool;
+import org.tihrc.microj.types.primitives.PyString;
 
 import java.util.*;
 

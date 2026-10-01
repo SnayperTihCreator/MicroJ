@@ -1,9 +1,10 @@
-package org.tihrc.microj.types;
+package org.tihrc.microj.types.objects;
 
 import org.tihrc.microj.core.Protocols;
 import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.RuntimeExecuter;
 import org.tihrc.microj.core.transforms.PyExport;
+import org.tihrc.microj.units.Utils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,44 +29,42 @@ public class PyClass extends PyObject implements Protocols.PyCallable {
 
     @Override
     public PyObject pyDanderCallFast(RuntimeExecuter ctx, PyObject[] args, String[] kwNames, PyObject[] kwValues) {
-        PyObject newMethod = findAttribute("__new__");
+        PyObject newMethod = attrs.get("__new__");              // только user-level
+        if (newMethod == null)
+            for (PyClass base : bases) {
+                newMethod = base.findAttribute("__new__");
+                if (newMethod != null) break;
+            }
 
         if (newMethod != null) {
-            PyObject instance = ((Protocols.PyCallable) newMethod).pyDanderCallFast(ctx, args, kwNames, kwValues);
-            if (instance instanceof PyInstance inst && inst.pyClass == this) {
-                PyObject initMethod = findAttribute("__init__");
-                if (initMethod instanceof Protocols.PyCallable callable) {
-                    PyObject[] initArgs = new PyObject[args.length + 1];
-                    initArgs[0] = instance;
-                    System.arraycopy(args, 0, initArgs, 1, args.length);
-                    callable.pyDanderCallFast(ctx, initArgs, kwNames, kwValues);
-                }
-            }
+            PyObject instance = ctx.callSyncFast(newMethod, args, kwNames, kwValues);
+            if (instance instanceof PyInstance inst && inst.pyClass == this)
+                initialized(instance, ctx, args, kwNames, kwValues);
             return instance;
         }
 
         PyInstance instance = new PyInstance(this);
+        initialized(instance, ctx, args, kwNames, kwValues);
+        return instance;
+    }
+
+    private void initialized(PyObject instance, RuntimeExecuter ctx,
+                             PyObject[] args, String[] kwNames, PyObject[] kwValues) {
         PyObject initMethod = findAttribute("__init__");
         if (initMethod instanceof Protocols.PyCallable callable) {
-            PyObject[] initArgs = new PyObject[args.length + 1];
-            initArgs[0] = instance;
-            System.arraycopy(args, 0, initArgs, 1, args.length);
-            callable.pyDanderCallFast(ctx, initArgs, kwNames, kwValues);
+            Utils.runFastSelf(ctx, callable, instance, args, kwNames, kwValues);
         }
-        return instance;
     }
 
     @Override
     public PyObject findAttribute(String name) {
         PyObject attr = attrs.get(name);
         if (attr != null) return attr;
-
         for (PyClass base : bases) {
             PyObject baseAttr = base.findAttribute(name);
             if (baseAttr != null) return baseAttr;
         }
-
-        return super.findAttribute(name);
+        return null;
     }
 
     public void setAttribute(String name, PyObject value) {

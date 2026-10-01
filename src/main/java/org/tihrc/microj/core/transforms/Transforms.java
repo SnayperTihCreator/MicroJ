@@ -4,12 +4,12 @@ import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.types.collections.PyDict;
 import org.tihrc.microj.types.collections.PyList;
-import org.tihrc.microj.types.collections.PyString;
+import org.tihrc.microj.types.primitives.PyString;
 import org.tihrc.microj.types.collections.PyTuple;
 import org.tihrc.microj.types.primitives.PyBool;
 import org.tihrc.microj.types.primitives.PyFloat;
 import org.tihrc.microj.types.primitives.PyInt;
-import org.tihrc.microj.types.primitives.PyNone;
+import org.tihrc.microj.types.core.PyNone;
 import org.tihrc.microj.units.SmartFloat;
 
 import java.util.ArrayList;
@@ -70,8 +70,8 @@ public class Transforms {
 
         // Integer / int
         if (type == Integer.class || type == int.class) {
+            if (obj instanceof PyBool b) return (T) Integer.valueOf(b.boolValue ? 1 : 0);
             if (obj instanceof PyInt i) return (T) Integer.valueOf(i.value.toInt());
-            if (obj instanceof PyBool b) return (T) Integer.valueOf(b.value ? 1 : 0);
             return typeError(obj, "int");
         }
 
@@ -83,7 +83,7 @@ public class Transforms {
         }
         // Boolean / boolean
         if (type == Boolean.class || type == boolean.class) {
-            if (obj instanceof PyBool b) return (T) Boolean.valueOf(b.value);
+            if (obj instanceof PyBool b) return (T) Boolean.valueOf(b.boolValue);
             if (obj instanceof PyInt i) return (T) Boolean.valueOf(i.value.toInt() != 0);
             return typeError(obj, "bool");
         }
@@ -117,13 +117,14 @@ public class Transforms {
         if (type == String.class) {
             if (obj instanceof PyString s) return (T) s.value;
         } else if (type == Integer.class || type == int.class) {
+            if (obj instanceof PyBool b) return (T) Integer.valueOf(b.boolValue ? 1 : 0);
             if (obj instanceof PyInt i) return (T) Integer.valueOf(i.value.toInt());
-            if (obj instanceof PyBool b) return (T) Integer.valueOf(b.value ? 1 : 0);
+
         } else if (type == Double.class || type == double.class) {
             if (obj instanceof PyFloat f) return (T) Double.valueOf(f.value.toDouble());
             if (obj instanceof PyInt i) return (T) Double.valueOf(i.value.toDouble());
         } else if (type == Boolean.class || type == boolean.class) {
-            if (obj instanceof PyBool b) return (T) Boolean.valueOf(b.value);
+            if (obj instanceof PyBool b) return (T) Boolean.valueOf(b.boolValue);
             if (obj instanceof PyInt i) return (T) Boolean.valueOf(i.value.toInt() != 0);
         } else if (type == List.class) {
             if (obj instanceof PyList list) return (T) list.getInner();

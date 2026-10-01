@@ -7,6 +7,8 @@ public enum BinaryOperator {
     SUB("__sub__"),
     MUL("__mul__"),
     DIV("__truediv__"),
+    FLOOR_DIV("__floordiv__"),
+    MOD("__mod__"),
     POW("__pow__"),
     EQ("__eq__"),
     NE("__ne__"),
@@ -27,7 +29,7 @@ public enum BinaryOperator {
 
     public Capability getRequiredCap() {
         return switch (this) {
-            case ADD, SUB, MUL, DIV, POW -> Capability.NUMBER;
+            case ADD, SUB, MUL, DIV, POW, FLOOR_DIV, MOD -> Capability.NUMBER;
             default -> Capability.COMPARABLE;
         };
     }

@@ -2,6 +2,18 @@ grammar MicroJ;
 
 tokens { INDENT, DEDENT }
 
+fragment SINGLE_Q_BODY: ~['\r\n]*;
+fragment DOUBLE_Q_BODY: ~["\r\n]*;
+fragment TRIPLE_DOUBLE_BODY: .*?;
+fragment TRIPLE_SINGLE_BODY: .*?;
+
+fragment STR_PREFIX: 'r' | 'R' | 'b' | 'B' | 'u' | 'U' | 'rb' | 'rB' | 'Rb' | 'RB' | 'br' | 'bR' | 'Br' | 'BR';
+
+TRIPLE_DOUBLE_STRING : STR_PREFIX? '"""' TRIPLE_DOUBLE_BODY '"""' ;
+TRIPLE_SINGLE_STRING : STR_PREFIX? '\'\'\'' TRIPLE_SINGLE_BODY '\'\'\'' ;
+SINGLE_DOUBLE_STRING : STR_PREFIX? '"' DOUBLE_Q_BODY '"' ;
+SINGLE_SINGLE_STRING : STR_PREFIX? '\'' SINGLE_Q_BODY '\'' ;
+
 file: (NEWLINE | statement)* EOF;
 
 statement: simpleStatement
@@ -80,7 +92,11 @@ power: atom (POW unary_expr)?;
 
 compareOp: EQ_EQ | NE | LT | GT | LE | GE | IN | NOT_IN;
 addOp: PLUS | MINUS;
-mulOp: STAR | SLASH;
+mulOp: STAR | SLASH | DOUBLE_SLASH | PERCENT;
+
+compFor: FOR targetList IN or_expr compIter*;
+compIf: IF or_expr;
+compIter: compFor | compIf;
 
 target: NAME
       | LPAREN targetList? COMMA? RPAREN
@@ -91,17 +107,24 @@ target: NAME
 
 targetList: target (COMMA target)* ;
 
+stringLit
+    : TRIPLE_DOUBLE_STRING
+    | TRIPLE_SINGLE_STRING
+    | SINGLE_DOUBLE_STRING
+    | SINGLE_SINGLE_STRING
+    ;
+
 atom: LAMBDA (paramList)? COLON expr # Lambda
     | NUMBER          # Number
     | FLOAT           # FloatLiteral
     | IMAG            # ImagLiteral
-    | STRING          # StringLiteral
+    | stringLit       # StringLiteral
     | NAME            # Variable
     | LPAREN expr (COMMA expr)* COMMA? RPAREN # TupleLiteral
-    | LBRACKET expr FOR targetList IN expr (IF expr)* RBRACKET # ListComprehension
-    | LBRACE expr COLON expr FOR targetList IN expr (IF expr)* RBRACE # DictComprehension
-    | LBRACE expr FOR targetList IN expr (IF expr)* RBRACE # SetComprehension
-    | LPAREN expr FOR targetList IN expr (IF expr)* RPAREN # GenExp
+    | LBRACKET expr compFor RBRACKET # ListComprehension
+    | LBRACE expr COLON expr compFor RBRACE # DictComprehension
+    | LBRACE expr compFor RBRACE # SetComprehension
+    | LPAREN expr compFor RPAREN # GenExp
     | LBRACKET exprList? RBRACKET # ListLiteral
     | LBRACE dictList? RBRACE   # DictLiteral
     | atom LBRACKET expr RBRACKET # SubscriptAtom
@@ -115,8 +138,9 @@ dictList: dictItem (COMMA dictItem)*;
 dictItem: expr COLON expr;
 
 argList: arg (COMMA arg)*;
-arg: NAME EQUAL expr # KwArg
-   | expr            # PosArg
+arg: NAME EQUAL expr        # KwArg
+   | expr compFor           # GenExpArg
+   | expr                   # PosArg
    ;
 
 importStatement: IMPORT NAME (AS NAME)? NEWLINE                 # ImportModule
@@ -169,7 +193,9 @@ PLUS: '+';
 MINUS: '-';
 STAR: '*';
 SLASH: '/';
+DOUBLE_SLASH: '//';
 POW: '**';
+PERCENT: '%';
 
 EQUAL: '=';
 EQ_EQ: '==';
@@ -186,7 +212,6 @@ NAME: [a-zA-Z_][a-zA-Z0-9_]*;
 NUMBER: [0-9]+;
 FLOAT: [0-9]+ '.' [0-9]* | '.' [0-9]+ ;
 IMAG: FLOAT 'j' | [0-9]+ 'j' ;
-STRING: '"' ~["\r\n]* '"' | '\'' ~['\r\n]* '\'';
-NEWLINE: '\r'?'\n' | ';';
+NEWLINE: '\r'?'\n';
 WS: [ \t]+ -> skip;
 COMMENT: '#' ~[\r\n]* -> skip;

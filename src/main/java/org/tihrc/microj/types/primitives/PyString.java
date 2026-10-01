@@ -1,14 +1,14 @@
-package org.tihrc.microj.types.collections;
+package org.tihrc.microj.types.primitives;
 
 import org.tihrc.microj.core.Protocols;
-import org.tihrc.microj.core.PyNotImplemented;
+import org.tihrc.microj.types.core.PyNone;
+import org.tihrc.microj.types.core.PyNotImplemented;
 import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.transforms.PyExport;
 import org.tihrc.microj.core.transforms.Transforms;
 import org.tihrc.microj.core.exceptions.Exceptions;
-import org.tihrc.microj.types.primitives.PyBool;
-import org.tihrc.microj.types.primitives.PyInt;
-import org.tihrc.microj.types.primitives.PyNone;
+import org.tihrc.microj.types.collections.PyList;
+import org.tihrc.microj.units.FormatSpecs;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -95,55 +95,8 @@ public class PyString extends PyObject implements Protocols.PyNumber, Protocols.
     @PyExport(name = "__format__")
     public PyObject pyDanderFormat(String spec) {
         if (spec == null || spec.isEmpty()) return this;
-        return new PyString(applyFormatSpec(this.value, spec));
+        return new PyString(FormatSpecs.pyStringSpec(this.value, spec));
     }
-
-    private String applyFormatSpec(String strVal, String spec) {
-        char fill = ' ';
-        char align;
-        int width;
-
-        try {
-            if (spec.length() >= 2 && (spec.charAt(1) == '<' || spec.charAt(1) == '>' || spec.charAt(1) == '^')) {
-                fill = spec.charAt(0);
-                align = spec.charAt(1);
-                width = Integer.parseInt(spec.substring(2));
-            } else if (!spec.isEmpty() && (spec.charAt(0) == '<' || spec.charAt(0) == '>' || spec.charAt(0) == '^')) {
-                align = spec.charAt(0);
-                width = Integer.parseInt(spec.substring(1));
-            } else if (spec.length() >= 2 && spec.charAt(0) == '0' && Character.isDigit(spec.charAt(1))) {
-                fill = '0';
-                align = '>';
-                width = Integer.parseInt(spec.substring(1));
-            } else {
-                width = Integer.parseInt(spec);
-                align = '>';
-            }
-        } catch (NumberFormatException e) {
-            return strVal; // Пока игнорируем сложные спеки (типа .2f для строк)
-        }
-
-        if (strVal.length() >= width) return strVal;
-        int padCount = width - strVal.length();
-        StringBuilder sb = new StringBuilder();
-        if (align == '>') {
-            sb.append(String.valueOf(fill).repeat(padCount));
-            sb.append(strVal);
-        } else if (align == '<') {
-            sb.append(strVal);
-            sb.append(String.valueOf(fill).repeat(padCount));
-        } else if (align == '^') {
-            int left = padCount / 2;
-            int right = padCount - left;
-            sb.append(String.valueOf(fill).repeat(left));
-            sb.append(strVal);
-            sb.append(String.valueOf(fill).repeat(Math.max(0, right)));
-        } else {
-            return strVal;
-        }
-        return sb.toString();
-    }
-
 
     @PyExport(name = "upper")
     public PyObject pyStringUpper() {
@@ -251,12 +204,11 @@ public class PyString extends PyObject implements Protocols.PyNumber, Protocols.
         return PyNotImplemented.INSTANCE;
     }
 
-    @Override
-    public PyObject pyDanderSub(PyObject other) { return PyNotImplemented.INSTANCE; }
-    @Override
-    public PyObject pyDanderTrueDiv(PyObject other) { return PyNotImplemented.INSTANCE; }
-    @Override
-    public PyObject pyDanderNeg() { return PyNotImplemented.INSTANCE; }
+    @Override public PyObject pyDanderMod(PyObject object) { return PyNotImplemented.INSTANCE; }
+    @Override public PyObject pyDanderFloorDiv(PyObject other) { return PyNotImplemented.INSTANCE; }
+    @Override public PyObject pyDanderSub(PyObject other) { return PyNotImplemented.INSTANCE; }
+    @Override public PyObject pyDanderTrueDiv(PyObject other) { return PyNotImplemented.INSTANCE; }
+    @Override public PyObject pyDanderNeg() { return PyNotImplemented.INSTANCE; }
 
     @SuppressWarnings("DataFlowIssue")
     @Override

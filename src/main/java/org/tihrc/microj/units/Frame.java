@@ -20,8 +20,6 @@ public class Frame {
     private Set<String> nonlocalNames = null;
     private Set<String> globalNames = null;
 
-    private static final PyObject[] NO_CONSTANTS = new PyObject[0];
-
     public void pushTryHandler(int target, int prevPc) {
         if (tryHandlers == null) tryHandlers = new ArrayDeque<>();
         tryHandlers.push(new int[]{target, prevPc});
@@ -33,11 +31,11 @@ public class Frame {
     }
 
     public Frame(List<Instruction> code) {
-        this(code, NO_CONSTANTS);
+        this(code, Constants.NO_CONSTANTS);
     }
 
     public Frame(List<Instruction> code, Map<String, PyObject> locals) {
-        this(code, NO_CONSTANTS);
+        this(code, Constants.NO_CONSTANTS);
         this.locals = locals;
     }
 
@@ -95,7 +93,7 @@ public class Frame {
     public FrameTask createTask(Consumer<PyObject> callback) {
         return new FrameTask(this, callback);
     }
-    public FrameTask createTask(Consumer<PyObject> callback, Consumer<PyBaseException> errorHandler) {
+    public FrameTask createTask(Consumer<PyObject> callback, Consumer<PyObject> errorHandler) {
         return new FrameTask(this, callback, errorHandler);
     }
 

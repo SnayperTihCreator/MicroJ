@@ -1,11 +1,14 @@
-package org.tihrc.microj.types.collections;
+package org.tihrc.microj.types.sequences;
 
 import org.tihrc.microj.compiler.Instruction;
 import org.tihrc.microj.core.Protocols;
 import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.RuntimeExecuter;
 import org.tihrc.microj.core.transforms.PyExport;
-import org.tihrc.microj.types.primitives.PyNone;
+import org.tihrc.microj.types.collections.PyDict;
+import org.tihrc.microj.types.primitives.PyString;
+import org.tihrc.microj.types.collections.PyTuple;
+import org.tihrc.microj.types.core.PyNone;
 import org.tihrc.microj.units.FastMap;
 import org.tihrc.microj.units.Frame;
 
@@ -91,7 +94,7 @@ public class PyGeneratorFunc extends PyObject implements Protocols.PyCallable {
 
         Frame genFrame = vm.obtainFrame(body, constants, closure);
         genFrame.locals = locals;
-        return new PyGenerator(name, genFrame, vm);
+        return new PyGenerator(name, genFrame);
     }
 
     @Override

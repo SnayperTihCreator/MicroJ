@@ -5,7 +5,7 @@ import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.RuntimeExecuter;
 import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.core.exceptions.PyUnwind;
-import org.tihrc.microj.types.primitives.PyNone;
+import org.tihrc.microj.types.core.PyNone;
 import org.tihrc.microj.units.FastMap;
 
 import java.lang.invoke.MethodHandle;

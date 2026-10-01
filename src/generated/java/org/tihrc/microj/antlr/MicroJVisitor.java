@@ -261,6 +261,24 @@ public interface MicroJVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitMulOp(MicroJParser.MulOpContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link MicroJParser#compFor}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitCompFor(MicroJParser.CompForContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link MicroJParser#compIf}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitCompIf(MicroJParser.CompIfContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link MicroJParser#compIter}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitCompIter(MicroJParser.CompIterContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link MicroJParser#target}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -272,6 +290,12 @@ public interface MicroJVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitTargetList(MicroJParser.TargetListContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link MicroJParser#stringLit}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitStringLit(MicroJParser.StringLitContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code SetComprehension}
 	 * labeled alternative in {@link MicroJParser#atom}.
@@ -422,6 +446,13 @@ public interface MicroJVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitKwArg(MicroJParser.KwArgContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code GenExpArg}
+	 * labeled alternative in {@link MicroJParser#arg}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitGenExpArg(MicroJParser.GenExpArgContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code PosArg}
 	 * labeled alternative in {@link MicroJParser#arg}.

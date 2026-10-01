@@ -11,7 +11,7 @@ import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.RuntimeLibrary;
 import org.tihrc.microj.core.RuntimeExecuter;
 import org.tihrc.microj.core.transforms.Transforms;
-import org.tihrc.microj.types.PyModule;
+import org.tihrc.microj.types.objects.PyModule;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -28,7 +28,7 @@ public class ResourceScriptLoader implements ScriptLoader {
     public PyModule loadModule(String moduleName, RuntimeExecuter vm) throws Exception {
         InputStream stream = null;
 
-        for (PyObject pathObj : library.getSysPath().getInner()) {
+        for (PyObject pathObj : vm.getVM().state.sysPath.getInner()) {
 
             String dir = Transforms.checkString(pathObj).value;
             String path = dir + moduleName + ".py";
@@ -54,7 +54,7 @@ public class ResourceScriptLoader implements ScriptLoader {
         RuntimeLibrary.PyFileModule scriptModule = new RuntimeLibrary.PyFileModule(moduleName);
         library.registerScript(scriptModule);
 
-        RuntimeExecuter moduleVm = new RuntimeExecuter(vm.getInterpreter());
+        RuntimeExecuter moduleVm = new RuntimeExecuter(vm.getVM());
         moduleVm.run(bytecode);
         scriptModule.importAttributesFromGlobals(moduleVm.getGlobals());
 

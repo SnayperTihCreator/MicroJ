@@ -3,7 +3,7 @@ package org.tihrc.microj.compiler.instruction;
 import org.tihrc.microj.compiler.Instruction;
 import org.tihrc.microj.core.*;
 import org.tihrc.microj.core.exceptions.Exceptions;
-import org.tihrc.microj.types.PyClass;
+import org.tihrc.microj.types.objects.PyClass;
 import org.tihrc.microj.types.collections.PyDict;
 import org.tihrc.microj.types.collections.PyList;
 import org.tihrc.microj.types.collections.PyTuple;
@@ -18,6 +18,9 @@ import java.util.Map;
 public class BuilderInstructions {
     public record BuildList(int size) implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter vm) {
+            if (size > 100) {
+                System.err.println("[WARNING] Large list building detected: " + size + " elements");
+            }
             PyObject[] items = new PyObject[size];
             for (int i = size - 1; i >= 0; i--) {
                 items[i] = f.stack.pop();

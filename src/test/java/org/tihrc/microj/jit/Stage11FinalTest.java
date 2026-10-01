@@ -2,7 +2,7 @@ package org.tihrc.microj.jit;
 
 import org.junit.jupiter.api.Test;
 import org.tihrc.microj.core.PyObject;
-import org.tihrc.microj.types.collections.PyString;
+import org.tihrc.microj.types.primitives.PyString;
 import org.tihrc.microj.types.primitives.PyInt;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

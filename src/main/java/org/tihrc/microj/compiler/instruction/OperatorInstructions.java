@@ -5,7 +5,8 @@ import org.tihrc.microj.compiler.Instruction;
 import org.tihrc.microj.compiler.UnaryOperator;
 import org.tihrc.microj.core.*;
 import org.tihrc.microj.core.exceptions.Exceptions;
-import org.tihrc.microj.types.PyFunction;
+import org.tihrc.microj.types.callables.PyFunction;
+import org.tihrc.microj.types.core.PyNotImplemented;
 import org.tihrc.microj.types.primitives.PyBool;
 import org.tihrc.microj.types.primitives.PyInt;
 import org.tihrc.microj.units.FastMap;
@@ -32,6 +33,14 @@ public class OperatorInstructions {
 
                 case DIV -> left instanceof Protocols.PyNumber n
                         ? n.pyDanderTrueDiv(right)
+                        : PyNotImplemented.INSTANCE;
+
+                case FLOOR_DIV -> left instanceof Protocols.PyNumber n
+                        ? n.pyDanderFloorDiv(right)
+                        : PyNotImplemented.INSTANCE;
+
+                case MOD -> left instanceof Protocols.PyNumber n
+                        ? n.pyDanderMod(right)
                         : PyNotImplemented.INSTANCE;
 
                 case POW -> PyNotImplemented.INSTANCE;

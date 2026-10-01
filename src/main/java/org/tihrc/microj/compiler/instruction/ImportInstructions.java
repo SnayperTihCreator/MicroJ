@@ -3,7 +3,7 @@ package org.tihrc.microj.compiler.instruction;
 import org.tihrc.microj.compiler.Instruction;
 import org.tihrc.microj.core.*;
 import org.tihrc.microj.core.exceptions.Exceptions;
-import org.tihrc.microj.types.*;
+import org.tihrc.microj.types.objects.PyModule;
 import org.tihrc.microj.units.Frame;
 
 import java.util.List;
@@ -11,7 +11,7 @@ import java.util.List;
 public class ImportInstructions {
     public record Import(String moduleName, String alias) implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter vm) {
-            RuntimeLibrary library = vm.getInterpreter().getLib();
+            RuntimeLibrary library = vm.getVM().getLib();
             PyModule module = library.resolveModule(moduleName, vm);
 
             if (module == null) {
@@ -25,7 +25,7 @@ public class ImportInstructions {
     }
     public record ImportFrom(String moduleName, List<String> names) implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter vm) {
-            RuntimeLibrary library = vm.getInterpreter().getLib();
+            RuntimeLibrary library = vm.getVM().getLib();
             PyModule module = library.resolveModule(moduleName, vm);
 
             if (module == null) {

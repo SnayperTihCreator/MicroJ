@@ -426,6 +426,36 @@ public interface MicroJListener extends ParseTreeListener {
 	 */
 	void exitMulOp(MicroJParser.MulOpContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link MicroJParser#compFor}.
+	 * @param ctx the parse tree
+	 */
+	void enterCompFor(MicroJParser.CompForContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MicroJParser#compFor}.
+	 * @param ctx the parse tree
+	 */
+	void exitCompFor(MicroJParser.CompForContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link MicroJParser#compIf}.
+	 * @param ctx the parse tree
+	 */
+	void enterCompIf(MicroJParser.CompIfContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MicroJParser#compIf}.
+	 * @param ctx the parse tree
+	 */
+	void exitCompIf(MicroJParser.CompIfContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link MicroJParser#compIter}.
+	 * @param ctx the parse tree
+	 */
+	void enterCompIter(MicroJParser.CompIterContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MicroJParser#compIter}.
+	 * @param ctx the parse tree
+	 */
+	void exitCompIter(MicroJParser.CompIterContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link MicroJParser#target}.
 	 * @param ctx the parse tree
 	 */
@@ -445,6 +475,16 @@ public interface MicroJListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitTargetList(MicroJParser.TargetListContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link MicroJParser#stringLit}.
+	 * @param ctx the parse tree
+	 */
+	void enterStringLit(MicroJParser.StringLitContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MicroJParser#stringLit}.
+	 * @param ctx the parse tree
+	 */
+	void exitStringLit(MicroJParser.StringLitContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code SetComprehension}
 	 * labeled alternative in {@link MicroJParser#atom}.
@@ -701,6 +741,18 @@ public interface MicroJListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitKwArg(MicroJParser.KwArgContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code GenExpArg}
+	 * labeled alternative in {@link MicroJParser#arg}.
+	 * @param ctx the parse tree
+	 */
+	void enterGenExpArg(MicroJParser.GenExpArgContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code GenExpArg}
+	 * labeled alternative in {@link MicroJParser#arg}.
+	 * @param ctx the parse tree
+	 */
+	void exitGenExpArg(MicroJParser.GenExpArgContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code PosArg}
 	 * labeled alternative in {@link MicroJParser#arg}.

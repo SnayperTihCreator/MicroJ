@@ -2,9 +2,10 @@ package org.tihrc.microj.stl;
 
 import org.tihrc.microj.core.Interpreter;
 import org.tihrc.microj.core.transforms.Transforms;
-import org.tihrc.microj.types.*;
+import org.tihrc.microj.types.callables.PyBuiltinFunction;
+import org.tihrc.microj.types.objects.PyModule;
 import org.tihrc.microj.types.primitives.PyFloat;
-import org.tihrc.microj.types.primitives.PyNone;
+import org.tihrc.microj.types.core.PyNone;
 import org.tihrc.microj.units.SmartFloat;
 
 public class PyModuleTime extends PyModule {

@@ -1,9 +1,9 @@
-package org.tihrc.microj.types.primitives;
+package org.tihrc.microj.types.core;
 
 import org.tihrc.microj.core.Protocols;
-import org.tihrc.microj.core.PyNotImplemented;
 import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.transforms.PyExport;
+import org.tihrc.microj.types.primitives.PyBool;
 
 public class PyNone extends PyObject implements Protocols.PyComparable {
     public static final PyNone INSTANCE = new PyNone();

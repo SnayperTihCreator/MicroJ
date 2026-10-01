@@ -1,116 +1,126 @@
 package org.tihrc.microj.types.primitives;
 
 import org.tihrc.microj.core.Protocols;
-import org.tihrc.microj.core.PyNotImplemented;
+import org.tihrc.microj.types.core.PyNotImplemented;
 import org.tihrc.microj.core.PyObject;
+import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.core.transforms.PyExport;
 import org.tihrc.microj.units.SmartComplex;
-import org.tihrc.microj.units.SmartFloat;
 
 public class PyComplex extends PyObject implements Protocols.PyNumber, Protocols.PyComparable {
     public final SmartComplex value;
 
-    public PyComplex(SmartComplex value) {
-        this.value = value;
-    }
+    public PyComplex(SmartComplex value) { this.value = value; }
 
     private SmartComplex toSmartComplex(PyObject other) {
         if (other instanceof PyComplex c) return c.value;
-        if (other instanceof PyFloat f) return new SmartComplex(f.value, new SmartFloat(0.0));
-        if (other instanceof PyInt i) return new SmartComplex(new SmartFloat(i.value.toDouble()), new SmartFloat(0.0));
+        if (other instanceof PyFloat f)  return SmartComplex.ofReal(f.value);
+        if (other instanceof PyInt i)    return SmartComplex.ofReal(i.value);
         return null;
     }
 
-    @Override
-    @PyExport(name = "__add__")
+    // ---------- this OP other ----------
+
+    @Override @PyExport(name = "__add__")
     public PyObject pyDanderAdd(PyObject other) {
-        SmartComplex otherVal = toSmartComplex(other);
-        if (otherVal != null) return new PyComplex(this.value.add(otherVal));
-        return PyNotImplemented.INSTANCE;
+        SmartComplex o = toSmartComplex(other);
+        return o != null ? new PyComplex(value.add(o)) : PyNotImplemented.INSTANCE;
     }
 
-    @Override
-    @PyExport(name = "__sub__")
+    @Override @PyExport(name = "__sub__")
     public PyObject pyDanderSub(PyObject other) {
-        SmartComplex otherVal = toSmartComplex(other);
-        if (otherVal != null) return new PyComplex(this.value.subtract(otherVal));
-        return PyNotImplemented.INSTANCE;
+        SmartComplex o = toSmartComplex(other);
+        return o != null ? new PyComplex(value.sub(o)) : PyNotImplemented.INSTANCE;
     }
 
-    @Override
-    @PyExport(name = "__mul__")
+    @Override @PyExport(name = "__mul__")
     public PyObject pyDanderMul(PyObject other) {
-        SmartComplex otherVal = toSmartComplex(other);
-        if (otherVal != null) return new PyComplex(this.value.multiply(otherVal));
-        return PyNotImplemented.INSTANCE;
+        SmartComplex o = toSmartComplex(other);
+        return o != null ? new PyComplex(value.mul(o)) : PyNotImplemented.INSTANCE;
     }
 
-    @Override
-    @PyExport(name = "__truediv__")
+    @Override @PyExport(name = "__truediv__")
     public PyObject pyDanderTrueDiv(PyObject other) {
-        SmartComplex otherVal = toSmartComplex(other);
-        if (otherVal != null) return new PyComplex(this.value.divide(otherVal));
-        return PyNotImplemented.INSTANCE;
+        SmartComplex o = toSmartComplex(other);
+        if (o == null) return PyNotImplemented.INSTANCE;
+        if (o.isZero())
+            return new Exceptions.PyZeroDivisionError("complex division by zero").raise();
+        return new PyComplex(value.div(o));
     }
 
-    @Override
-    @PyExport(name = "__neg__")
+    @PyExport(name = "__radd__")
+    public PyObject pyDanderRAdd(PyObject other) {
+        SmartComplex o = toSmartComplex(other);
+        return o != null ? new PyComplex(o.add(value)) : PyNotImplemented.INSTANCE;
+    }
+
+    @PyExport(name = "__rsub__")
+    public PyObject pyDanderRSub(PyObject other) {
+        SmartComplex o = toSmartComplex(other);
+        return o != null ? new PyComplex(o.sub(value)) : PyNotImplemented.INSTANCE;
+    }
+
+    @PyExport(name = "__rmul__")
+    public PyObject pyDanderRMul(PyObject other) {
+        SmartComplex o = toSmartComplex(other);
+        return o != null ? new PyComplex(o.mul(value)) : PyNotImplemented.INSTANCE;
+    }
+
+    @PyExport(name = "__rtruediv__")
+    public PyObject pyDanderRTruediv(PyObject other) {
+        SmartComplex o = toSmartComplex(other);
+        if (o == null) return PyNotImplemented.INSTANCE;
+        if (value.isZero())
+            return new Exceptions.PyZeroDivisionError("complex division by zero").raise();
+        return new PyComplex(o.div(value));
+    }
+
+    @Override @PyExport(name = "__neg__")
     public PyObject pyDanderNeg() {
-        return new PyComplex(this.value.multiply(new SmartComplex(-1, 0)));
+        return new PyComplex(value.negate());
     }
 
-    @Override
-    @PyExport(name = "__bool__")
+    @Override @PyExport(name = "__bool__")
     public boolean pyDanderBool() {
-        return this.value.getRealAsDouble() != 0.0 || this.value.getImagAsDouble() != 0.0;
+        return !value.isZero();
     }
 
-    @Override
-    @PyExport(name = "__eq__")
+    @Override @PyExport(name = "__eq__")
     public PyObject pyDanderEq(PyObject other) {
-        SmartComplex otherVal = toSmartComplex(other);
-        if (otherVal != null) return PyBool.from(this.value.equals(otherVal));
-        return PyBool.FALSE;
+        SmartComplex o = toSmartComplex(other);
+        return o != null ? PyBool.from(value.equals(o)) : PyNotImplemented.INSTANCE;
     }
 
-    @Override
-    @PyExport(name = "__ne__")
+    @Override @PyExport(name = "__ne__")
     public PyObject pyDanderNe(PyObject other) {
-        SmartComplex otherVal = toSmartComplex(other);
-        if (otherVal != null) return PyBool.from(!this.value.equals(otherVal));
-        return PyBool.TRUE;
+        SmartComplex o = toSmartComplex(other);
+        return o != null ? PyBool.from(!value.equals(o)) : PyNotImplemented.INSTANCE;
     }
 
-    @Override public PyObject pyDanderLt(PyObject other) { return PyNotImplemented.INSTANCE; }
-    @Override public PyObject pyDanderGt(PyObject other) { return PyNotImplemented.INSTANCE; }
-    @Override public PyObject pyDanderLe(PyObject other) { return PyNotImplemented.INSTANCE; }
-    @Override public PyObject pyDanderGe(PyObject other) { return PyNotImplemented.INSTANCE; }
+    @Override public PyObject pyDanderFloorDiv(PyObject other) { return PyNotImplemented.INSTANCE; }
+    @Override public PyObject pyDanderMod(PyObject other)      { return PyNotImplemented.INSTANCE; }
+    @Override public PyObject pyDanderLt(PyObject other)       { return PyNotImplemented.INSTANCE; }
+    @Override public PyObject pyDanderGt(PyObject other)       { return PyNotImplemented.INSTANCE; }
+    @Override public PyObject pyDanderLe(PyObject other)       { return PyNotImplemented.INSTANCE; }
+    @Override public PyObject pyDanderGe(PyObject other)       { return PyNotImplemented.INSTANCE; }
 
     @Override
     public String pyDanderRepr() {
         double real = value.getRealAsDouble();
         double imag = value.getImagAsDouble();
-
         String realStr = (real == Math.floor(real) && !Double.isInfinite(real)) ? String.valueOf((long) real) : String.valueOf(real);
         String imagStr = (imag == Math.floor(imag) && !Double.isInfinite(imag)) ? (long) imag + ".0" : String.valueOf(imag);
-
-        if (imag >= 0) {
-            return "(%s+%sj)".formatted(realStr, imagStr);
-        }
-        return "(%s%sj)".formatted(realStr, imagStr);
+        return imag >= 0 ? "(%s+%sj)".formatted(realStr, imagStr) : "(%s%sj)".formatted(realStr, imagStr);
     }
 
     @Override
     public String toString() {
-        return "PyComplex<%s>".formatted(this.pyDanderRepr());
+        return "PyComplex<%s>".formatted(pyDanderRepr());
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (!(obj instanceof PyComplex other)) return false;
-
-        return this.value.equals(other.value);
+        return obj instanceof PyComplex o && this.value.equals(o.value);
     }
 
     @Override

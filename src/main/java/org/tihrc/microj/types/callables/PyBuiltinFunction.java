@@ -1,4 +1,4 @@
-package org.tihrc.microj.types;
+package org.tihrc.microj.types.callables;
 
 import org.tihrc.microj.core.Protocols;
 import org.tihrc.microj.core.PyObject;

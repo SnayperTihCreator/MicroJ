@@ -8,10 +8,12 @@ import org.tihrc.microj.backend.jvm.JvmCompiler;
 import org.tihrc.microj.backend.jvm.JvmScript;
 import org.tihrc.microj.compiler.IndentingLexer;
 import org.tihrc.microj.compiler.InstructionGenerator;
+import org.tihrc.microj.compiler.ThrowingErrorListener;
+import org.tihrc.microj.core.exceptions.Exceptions;
+import org.tihrc.microj.core.exceptions.ExceptionsRegistry;
 import org.tihrc.microj.core.exceptions.PyUnwind;
-import org.tihrc.microj.stl.PyModuleSys;
 import org.tihrc.microj.types.core.PyContext;
-import org.tihrc.microj.types.primitives.PyNone;
+import org.tihrc.microj.types.core.PyNone;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -20,18 +22,16 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 public class Interpreter {
+    @SuppressWarnings("FieldCanBeLocal")
     private final StandardLibrary stl;
     private final RuntimeLibrary lib;
-    public int MAX_RECURSION_DEPTH = 1500;
+    public final InterpreterState state;
     private final Map<InstructionGenerator.CompiledScript, JvmScript> jitCache = new WeakHashMap<>();
-
-    private final PyModuleSys sysModule;
 
     public Interpreter() {
         stl = new StandardLibrary(this);
-        lib = new RuntimeLibrary(stl);
-
-        sysModule = (PyModuleSys)stl.getModule("sys");
+        lib = new RuntimeLibrary(this, stl);
+        state = new InterpreterState(stl.getModules());
     }
 
     public RuntimeLibrary getLib() {
@@ -43,12 +43,16 @@ public class Interpreter {
             throw new IllegalArgumentException("Поток скрипта пуст (null)");
         }
         try {
-            MicroJLexer lexer = new IndentingLexer(
-                    CharStreams.fromStream(scriptStream, StandardCharsets.UTF_8)
-            );
+
+            MicroJLexer lexer = new IndentingLexer(CharStreams.fromStream(scriptStream, StandardCharsets.UTF_8));
 
             CommonTokenStream tokens = new CommonTokenStream(lexer);
             MicroJParser parser = new MicroJParser(tokens);
+
+            lexer.removeErrorListeners();
+            parser.removeErrorListeners();
+            lexer.addErrorListener(ThrowingErrorListener.INSTANCE);
+            parser.addErrorListener(ThrowingErrorListener.INSTANCE);
 
             var tree = parser.file();
 
@@ -73,22 +77,22 @@ public class Interpreter {
                     jitScript = new JvmCompiler().compile(script);
                     jitCache.put(script, jitScript);
                 }
+            } catch (PyUnwind e) {
+                throw e;
             } catch (Throwable t) {
                 System.err.println("[microj] JIT compile failed → bytecode: " + t);
-                sysModule.setBackend("bytecode");
+                state.recordBytecode();
                 return ctx.run(script);
             }
 
-            sysModule.setBackend("jit");
+            state.recordJit();
             try {
                 return jitScript.execute(ctx);
             } catch (PyUnwind e) {
-                return ctx.raised(e.exception);
-            } catch (Exception e) {
-                System.err.println("[microj] JIT execute failed → bytecode: "
-                        + e.getClass().getSimpleName() + ": " + e.getMessage());
-                sysModule.setBackend("bytecode");
-                return ctx.run(script);
+                return ctx.raised(e);
+            } catch (Throwable t) {
+                System.err.println("[microj] JIT internal error: " + t);
+                return new Exceptions.PySystemError("internal error (JIT): " + t).raise();
             }
         });
     }
@@ -97,10 +101,11 @@ public class Interpreter {
     public PyObject run(InputStream scriptStream) {
         try {
             return run(compile(scriptStream));
+        } catch (PyUnwind e) {
+            System.err.println(ExceptionsRegistry.formatError(e.payload));
+            return PyNone.INSTANCE;
         } catch (Exception e) {
-            System.err.println(
-                    "Ошибка при выполнении скрипта: " + e.getMessage()
-            );
+            System.err.println("Ошибка при выполнении скрипта: " + e.getMessage());
             e.printStackTrace(System.err);
             return PyNone.INSTANCE;
         }

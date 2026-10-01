@@ -1,10 +1,11 @@
-package org.tihrc.microj.core;
+package org.tihrc.microj.types.runtime;
 
 import org.tihrc.microj.compiler.Instruction;
+import org.tihrc.microj.core.PyObject;
 
 import java.util.List;
 
-public class PyCode extends PyObject{
+public class PyCode extends PyObject {
     public final List<Instruction> body;
     public PyCode(List<Instruction> body) {
         this.body = body;

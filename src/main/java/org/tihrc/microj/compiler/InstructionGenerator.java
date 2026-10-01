@@ -3,11 +3,13 @@ package org.tihrc.microj.compiler;
 import org.tihrc.microj.antlr.MicroJBaseVisitor;
 import org.tihrc.microj.antlr.MicroJParser;
 import org.tihrc.microj.compiler.instruction.*;
-import org.tihrc.microj.core.PyCode;
+import org.tihrc.microj.types.core.PyNone;
+import org.tihrc.microj.types.runtime.PyCode;
 import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.exceptions.Exceptions;
-import org.tihrc.microj.types.collections.PyString;
+import org.tihrc.microj.types.primitives.PyString;
 import org.tihrc.microj.types.primitives.*;
+import org.tihrc.microj.units.Constants;
 import org.tihrc.microj.units.SmartComplex;
 import org.tihrc.microj.units.SmartFloat;
 import org.tihrc.microj.units.SmartInt;
@@ -15,12 +17,16 @@ import org.tihrc.microj.units.SmartInt;
 import java.util.*;
 
 public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
-        private List<Instruction> bytecode = new ArrayList<>();
+    private List<Instruction> bytecode = new ArrayList<>();
     private Deque<LoopBlock> loopStack = new ArrayDeque<>();
     private final ConstantPool constants = new ConstantPool();
+    private int tmpCounter = 0;
+    private final Deque<String> excTemps = new ArrayDeque<>();
+
     private final int INDEX_NONE = addConstant(PyNone.INSTANCE);
     private final int INDEX_TRUE = addConstant(PyBool.TRUE);
     private final int INDEX_FALSE = addConstant(PyBool.FALSE);
+
 
     private static class LoopBlock {
         int continueTarget;
@@ -35,10 +41,6 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
 
     public CompiledScript compile(MicroJParser.FileContext ctx) {
         visit(ctx);
-        System.out.println("=== Bytecode ===");
-        for (int i = 0; i < bytecode.size(); i++) {
-            System.out.println(i + ": " + bytecode.get(i));
-        }
         return new CompiledScript(bytecode, constants.toArray());
     }
 
@@ -71,6 +73,47 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
         free.removeAll(bound);
         free.removeAll(globals);
         return new ArrayList<>(free);
+    }
+
+    private void emitCompFor(MicroJParser.CompForContext ctx, Runnable bodyEmitter) {
+        visit(ctx.or_expr());
+        bytecode.add(new ControlFlowInstructions.GetIter());
+
+        int loopStart = bytecode.size();
+        int exitJump = bytecode.size();
+        bytecode.add(null);
+
+        var targets = ctx.targetList().target();
+        if (targets.size() == 1) visitTarget(targets.getFirst());
+        else visitTargetList(ctx.targetList());
+
+        // обрабатываем compIter* (вложенные for/if)
+        emitCompIters(ctx.compIter(), bodyEmitter);
+
+        bytecode.add(new ControlFlowInstructions.JumpAbsolute(loopStart));
+        int endLoop = bytecode.size();
+        bytecode.set(exitJump, new ControlFlowInstructions.ForIter(endLoop));
+    }
+
+    private void emitCompIters(List<MicroJParser.CompIterContext> iters, Runnable bodyEmitter) {
+        if (iters.isEmpty()) {
+            bodyEmitter.run();
+            return;
+        }
+
+        MicroJParser.CompIterContext first = iters.getFirst();
+        List<MicroJParser.CompIterContext> rest = iters.subList(1, iters.size());
+
+        if (first.compFor() != null) {
+            emitCompFor(first.compFor(), () -> emitCompIters(rest, bodyEmitter));
+        } else {
+            visit(first.compIf().or_expr());
+            int condJump = bytecode.size();
+            bytecode.add(null);
+            emitCompIters(rest, bodyEmitter);
+            int afterCond = bytecode.size();
+            bytecode.set(condJump, new ControlFlowInstructions.PopJumpIfFalse(afterCond));
+        }
     }
 
     @Override
@@ -197,6 +240,10 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
             int bodyStart = bytecode.size();
             bodyStarts.add(bodyStart);
 
+            String excTemp = "__exc_" + (tmpCounter++) + "__";
+            bytecode.add(new StackInstructions.StoreName(excTemp));
+            bytecode.add(new StackInstructions.LoadName(excTemp));
+
             if (ctx.exceptClause(i) != null && ctx.exceptClause(i).AS() != null) {
                 int nameCount = ctx.exceptClause(i).NAME().size();
                 String aliasName = ctx.exceptClause(i).NAME(nameCount - 1).getText();
@@ -204,8 +251,9 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
             } else {
                 bytecode.add(new StackInstructions.PopTop());
             }
-
+            excTemps.push(excTemp);
             visit(ctx.block(i + 1));
+            excTemps.pop();
             bytecode.add(new ControlFlowInstructions.JumpAbsolute(jumpToFinallyIndex));
         }
 
@@ -239,6 +287,9 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
     public List<Instruction> visitRaiseStatement(MicroJParser.RaiseStatementContext ctx) {
         if (ctx.expr() != null) {
             visit(ctx.expr());
+            bytecode.add(new ErrorInstructions.RaiseException());
+        } else if (!excTemps.isEmpty()) {
+            bytecode.add(new StackInstructions.LoadName(excTemps.peek()));
             bytecode.add(new ErrorInstructions.RaiseException());
         } else {
             bytecode.add(new ErrorInstructions.ReRaise());
@@ -606,6 +657,8 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
             BinaryOperator op = switch (tokenType) {
                 case MicroJParser.STAR -> BinaryOperator.MUL;
                 case MicroJParser.SLASH -> BinaryOperator.DIV;
+                case MicroJParser.DOUBLE_SLASH -> BinaryOperator.FLOOR_DIV;
+                case MicroJParser.PERCENT -> BinaryOperator.MOD;
                 default -> throw new RuntimeException("Неизвестный мультипликативный оператор");
             };
             bytecode.add(new OperatorInstructions.BinaryOp(op));
@@ -703,17 +756,53 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
 
     @Override
     public List<Instruction> visitStringLiteral(MicroJParser.StringLiteralContext ctx) {
-        String text = ctx.STRING().getText();
-        String value = text.substring(1, text.length() - 1)
-                .replace("\\n", "\n")
-                .replace("\\t", "\t")
-                .replace("\\\"", "\"")
-                .replace("\\'", "'")
-                .replace("\\\\", "\\");
+        String raw;
+        boolean isRaw = false;
+        boolean isBytes = false;
+        String content;
 
-        int index = addConstant(new PyString(value));
+        if (ctx.stringLit().TRIPLE_DOUBLE_STRING() != null) {
+            raw = ctx.stringLit().TRIPLE_DOUBLE_STRING().getText();
+        } else if (ctx.stringLit().TRIPLE_SINGLE_STRING() != null) {
+            raw = ctx.stringLit().TRIPLE_SINGLE_STRING().getText();
+        } else if (ctx.stringLit().SINGLE_DOUBLE_STRING() != null) {
+            raw = ctx.stringLit().SINGLE_DOUBLE_STRING().getText();
+        } else {
+            raw = ctx.stringLit().SINGLE_SINGLE_STRING().getText();
+        }
+
+        int start = 0;
+        while (start < raw.length()) {
+            char c = Character.toLowerCase(raw.charAt(start));
+            if (c == 'r') { isRaw = true; start++; }
+            else if (c == 'b') { isBytes = true; start++; }
+            else if (c == 'u') { start++; }
+            else break;
+        }
+
+        String body = raw.substring(start);
+        if (body.startsWith("\"\"\"") || body.startsWith("'''")) {
+            content = body.substring(3, body.length() - 3);
+        } else {
+            content = body.substring(1, body.length() - 1);
+        }
+
+        if (!isRaw) {
+            content = unescape(content);
+        }
+        int index = addConstant(new PyString(content));
         bytecode.add(new StackInstructions.LoadConst(index));
         return bytecode;
+    }
+
+    private static String unescape(String s) {
+        return s.replace("\\n", "\n")
+                .replace("\\t", "\t")
+                .replace("\\r", "\r")
+                .replace("\\\"", "\"")
+                .replace("\\'", "'")
+                .replace("\\\\", "\\")
+                .replace("\\0", "\0");
     }
 
     @Override
@@ -731,116 +820,57 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
 
     @Override
     public List<Instruction> visitDictComprehension(MicroJParser.DictComprehensionContext ctx) {
+        String tmpName = "__tmp_dict_" + (tmpCounter++) + "__";
         bytecode.add(new BuilderInstructions.BuildMap(0));
-        bytecode.add(new StackInstructions.StoreName("__tmp_dict__"));
+        bytecode.add(new StackInstructions.StoreName(tmpName));
 
-        visit(ctx.expr(2));
-        bytecode.add(new ControlFlowInstructions.GetIter());
+        emitCompFor(ctx.compFor(), () -> {
+            visit(ctx.expr(0));
+            visit(ctx.expr(1));
+            bytecode.add(new StackInstructions.LoadName(tmpName));
+            bytecode.add(new AttributeInstructions.GetAttr("__setitem__"));
+            bytecode.add(new CallInstructions.CallFunction(2, Constants.NO_KW_NAMES));
+            bytecode.add(new StackInstructions.PopTop());
+        });
 
-        int loopStart = bytecode.size();
-        int exitJump = bytecode.size();
-        bytecode.add(null);
-        var targets = ctx.targetList().target();
-        if (targets.size() == 1) visitTarget(targets.getFirst());
-        else visitTargetList(ctx.targetList());
-
-        List<Integer> condJumps = new ArrayList<>();
-        for (int i = 0; i < ctx.IF().size(); i++) {
-            visit(ctx.expr(i + 3));
-            condJumps.add(bytecode.size());
-            bytecode.add(null);
-        }
-
-        visit(ctx.expr(0));
-        visit(ctx.expr(1));
-
-        bytecode.add(new StackInstructions.LoadName("__tmp_dict__"));
-        bytecode.add(new AttributeInstructions.GetAttr("__setitem__"));
-        bytecode.add(new CallInstructions.CallFunction(2, new String[0]));
-        bytecode.add(new StackInstructions.PopTop());
-
-        bytecode.add(new ControlFlowInstructions.JumpAbsolute(loopStart));
-        int endLoop = bytecode.size();
-        bytecode.set(exitJump, new ControlFlowInstructions.ForIter(endLoop));
-        for (int condJump : condJumps)
-            bytecode.set(condJump, new ControlFlowInstructions.PopJumpIfFalse(loopStart));
-        bytecode.add(new StackInstructions.LoadName("__tmp_dict__"));
+        bytecode.add(new StackInstructions.LoadName(tmpName));
         return bytecode;
     }
 
+
     @Override
     public List<Instruction> visitSetComprehension(MicroJParser.SetComprehensionContext ctx) {
+        String tmpName = "__tmp_set_" + (tmpCounter++) + "__";
         bytecode.add(new BuilderInstructions.BuildList(0));
-        bytecode.add(new StackInstructions.StoreName("__tmp_set__"));
+        bytecode.add(new StackInstructions.StoreName(tmpName));
 
-        visit(ctx.expr(1));
-        bytecode.add(new ControlFlowInstructions.GetIter());
+        emitCompFor(ctx.compFor(), () -> {
+            visit(ctx.expr());
+            bytecode.add(new StackInstructions.LoadName(tmpName));
+            bytecode.add(new AttributeInstructions.GetAttr("append"));
+            bytecode.add(new CallInstructions.CallFunction(1, Constants.NO_KW_NAMES));
+            bytecode.add(new StackInstructions.PopTop());
+        });
 
-        int loopStart = bytecode.size();
-        int exitJump = bytecode.size();
-        bytecode.add(null);
-        var targets = ctx.targetList().target();
-        if (targets.size() == 1) visitTarget(targets.getFirst());
-        else visitTargetList(ctx.targetList());
-
-        List<Integer> condJumps = new ArrayList<>();
-        for (int i = 0; i < ctx.IF().size(); i++) {
-            visit(ctx.expr(i + 2));
-            condJumps.add(bytecode.size());
-            bytecode.add(null);
-        }
-
-        visit(ctx.expr(0));
-        bytecode.add(new StackInstructions.LoadName("__tmp_set__"));
-        bytecode.add(new AttributeInstructions.GetAttr("append"));
-        bytecode.add(new CallInstructions.CallFunction(1, new String[0]));
-        bytecode.add(new StackInstructions.PopTop());
-
-        bytecode.add(new ControlFlowInstructions.JumpAbsolute(loopStart));
-        int endLoop = bytecode.size();
-        bytecode.set(exitJump, new ControlFlowInstructions.ForIter(endLoop));
-        for (int condJump : condJumps) {
-            bytecode.set(condJump, new ControlFlowInstructions.PopJumpIfFalse(loopStart));
-        }
-        bytecode.add(new StackInstructions.LoadName("__tmp_set__"));
+        bytecode.add(new StackInstructions.LoadName(tmpName));
         return bytecode;
     }
 
     @Override
     public List<Instruction> visitGenExp(MicroJParser.GenExpContext ctx) {
+        String tmpName = "__tmp_gen_" + (tmpCounter++) + "__";
         bytecode.add(new BuilderInstructions.BuildList(0));
-        bytecode.add(new StackInstructions.StoreName("__tmp_gen__"));
+        bytecode.add(new StackInstructions.StoreName(tmpName));
 
-        visit(ctx.expr(1));
-        bytecode.add(new ControlFlowInstructions.GetIter());
+        emitCompFor(ctx.compFor(), () -> {
+            visit(ctx.expr());
+            bytecode.add(new StackInstructions.LoadName(tmpName));
+            bytecode.add(new AttributeInstructions.GetAttr("append"));
+            bytecode.add(new CallInstructions.CallFunction(1, Constants.NO_KW_NAMES));
+            bytecode.add(new StackInstructions.PopTop());
+        });
 
-        int loopStart = bytecode.size();
-        int exitJump = bytecode.size();
-        bytecode.add(null);
-        var targets = ctx.targetList().target();
-        if (targets.size() == 1) visitTarget(targets.getFirst());
-        else visitTargetList(ctx.targetList());
-
-        List<Integer> condJumps = new ArrayList<>();
-        for (int i = 0; i < ctx.IF().size(); i++) {
-            visit(ctx.expr(i + 2));
-            condJumps.add(bytecode.size());
-            bytecode.add(null);
-        }
-
-        visit(ctx.expr(0));
-        bytecode.add(new StackInstructions.LoadName("__tmp_gen__"));
-        bytecode.add(new AttributeInstructions.GetAttr("append"));
-        bytecode.add(new CallInstructions.CallFunction(1, new String[0]));
-        bytecode.add(new StackInstructions.PopTop());
-
-        bytecode.add(new ControlFlowInstructions.JumpAbsolute(loopStart));
-        int endLoop = bytecode.size();
-        bytecode.set(exitJump, new ControlFlowInstructions.ForIter(endLoop));
-        for (int condJump : condJumps) {
-            bytecode.set(condJump, new ControlFlowInstructions.PopJumpIfFalse(loopStart));
-        }
-        bytecode.add(new StackInstructions.LoadName("__tmp_gen__"));
+        bytecode.add(new StackInstructions.LoadName(tmpName));
         return bytecode;
     }
 
@@ -909,12 +939,14 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
                     posCount++;
                 }
             }
-        }
 
-        if (ctx.argList() != null) {
             for (var argCtx : ctx.argList().arg()) {
-                if (argCtx instanceof MicroJParser.KwArgContext kwCtx) {
+                if (argCtx instanceof MicroJParser.GenExpArgContext genCtx) {
+                    visit(genCtx);
+
+                } else if (argCtx instanceof MicroJParser.KwArgContext kwCtx) {
                     visit(kwCtx.expr());
+
                 } else if (argCtx instanceof MicroJParser.PosArgContext posCtx) {
                     visit(posCtx.expr());
                 }
@@ -928,11 +960,7 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
             visit(ctx.atom());
         }
 
-        bytecode.add(new CallInstructions.CallFunction(
-                posCount,
-                keywordNames.toArray(String[]::new)
-        ));
-
+        bytecode.add(new CallInstructions.CallFunction(posCount, keywordNames.toArray(String[]::new)));
         return bytecode;
     }
 
@@ -979,37 +1007,37 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
 
     @Override
     public List<Instruction> visitListComprehension(MicroJParser.ListComprehensionContext ctx) {
+        String tmpName = "__tmp_list_" + (tmpCounter++) + "__";
         bytecode.add(new BuilderInstructions.BuildList(0));
-        bytecode.add(new StackInstructions.StoreName("__tmp_list__"));
-        visit(ctx.expr(1));
-        bytecode.add(new ControlFlowInstructions.GetIter());
+        bytecode.add(new StackInstructions.StoreName(tmpName));
 
-        int loopStart = bytecode.size();
-        int exitJump = bytecode.size();
-        bytecode.add(null);
-        var targets = ctx.targetList().target();
-        if (targets.size() == 1) visitTarget(targets.getFirst());
-        else visitTargetList(ctx.targetList());
+        emitCompFor(ctx.compFor(), () -> {
+            visit(ctx.expr());
+            bytecode.add(new StackInstructions.LoadName(tmpName));
+            bytecode.add(new AttributeInstructions.GetAttr("append"));
+            bytecode.add(new CallInstructions.CallFunction(1, Constants.NO_KW_NAMES));
+            bytecode.add(new StackInstructions.PopTop());
+        });
 
-        List<Integer> condJumps = new ArrayList<>();
-        for (int i = 0; i < ctx.IF().size(); i++) {
-            visit(ctx.expr(i + 2));
-            condJumps.add(bytecode.size());
-            bytecode.add(null);
-        }
+        bytecode.add(new StackInstructions.LoadName(tmpName));
+        return bytecode;
+    }
 
-        visit(ctx.expr(0));
-        bytecode.add(new StackInstructions.LoadName("__tmp_list__"));
-        bytecode.add(new AttributeInstructions.GetAttr("append"));
-        bytecode.add(new CallInstructions.CallFunction(1, new String[0]));
-        bytecode.add(new StackInstructions.PopTop());
-        bytecode.add(new ControlFlowInstructions.JumpAbsolute(loopStart));
-        int endLoop = bytecode.size();
-        bytecode.set(exitJump, new ControlFlowInstructions.ForIter(endLoop));
-        for (int condJump : condJumps) {
-            bytecode.set(condJump, new ControlFlowInstructions.PopJumpIfFalse(loopStart));
-        }
-        bytecode.add(new StackInstructions.LoadName("__tmp_list__"));
+    @Override
+    public List<Instruction> visitGenExpArg(MicroJParser.GenExpArgContext ctx) {
+        String tmpName = "__tmp_gen_" + (tmpCounter++) + "__";
+        bytecode.add(new BuilderInstructions.BuildList(0));
+        bytecode.add(new StackInstructions.StoreName(tmpName));
+
+        emitCompFor(ctx.compFor(), () -> {
+            visit(ctx.expr());
+            bytecode.add(new StackInstructions.LoadName(tmpName));
+            bytecode.add(new AttributeInstructions.GetAttr("append"));
+            bytecode.add(new CallInstructions.CallFunction(1, new String[0]));
+            bytecode.add(new StackInstructions.PopTop());
+        });
+
+        bytecode.add(new StackInstructions.LoadName(tmpName));
         return bytecode;
     }
 

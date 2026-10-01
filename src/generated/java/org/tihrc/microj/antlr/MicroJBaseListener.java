@@ -509,6 +509,42 @@ public class MicroJBaseListener implements MicroJListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterCompFor(MicroJParser.CompForContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitCompFor(MicroJParser.CompForContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterCompIf(MicroJParser.CompIfContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitCompIf(MicroJParser.CompIfContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterCompIter(MicroJParser.CompIterContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitCompIter(MicroJParser.CompIterContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterTarget(MicroJParser.TargetContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -528,6 +564,18 @@ public class MicroJBaseListener implements MicroJListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitTargetList(MicroJParser.TargetListContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterStringLit(MicroJParser.StringLitContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitStringLit(MicroJParser.StringLitContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -792,6 +840,18 @@ public class MicroJBaseListener implements MicroJListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitKwArg(MicroJParser.KwArgContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterGenExpArg(MicroJParser.GenExpArgContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitGenExpArg(MicroJParser.GenExpArgContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

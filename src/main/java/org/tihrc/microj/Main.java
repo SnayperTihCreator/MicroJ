@@ -2,10 +2,12 @@ package org.tihrc.microj;
 
 import org.tihrc.microj.core.Interpreter;
 import org.tihrc.microj.core.PyObject;
+import org.tihrc.microj.core.exceptions.ExceptionsRegistry;
 import org.tihrc.microj.core.transforms.Transforms;
-import org.tihrc.microj.types.*;
-import org.tihrc.microj.types.collections.PyString;
-import org.tihrc.microj.types.primitives.PyNone;
+import org.tihrc.microj.types.callables.PyBuiltinFunction;
+import org.tihrc.microj.types.primitives.PyString;
+import org.tihrc.microj.types.objects.PyModule;
+import org.tihrc.microj.types.core.PyNone;
 
 import java.io.InputStream;
 
@@ -36,6 +38,10 @@ public class Main {
             });
         }));
         interpreter.getLib().registerScript(gameModule);
+
+        System.out.println("BaseException = " + ExceptionsRegistry.get("BaseException"));
+        System.out.println("ALL.size = " + ExceptionsRegistry.ALL.size());
+
         String scriptPath = "scripts/main.py";
         InputStream stream = Main.class.getClassLoader().getResourceAsStream(scriptPath);
         interpreter.run(stream);

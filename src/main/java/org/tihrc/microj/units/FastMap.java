@@ -24,11 +24,17 @@ public class FastMap<V> implements Map<String, V> {
         this.values = (V[])new Object[this.capacity];
     }
 
+    public static <T> FastMap<T> from(String[] names, T[] values){
+        FastMap<T> result = new FastMap<>();
+        for (int i = 0; i < names.length; i++)
+            result.put(names[i], values[i]);
+        return result;
+    }
+
     private int hash(String key){
         return key.hashCode() & (capacity - 1);
     }
 
-    // Ускоренный метод для внутреннего использования (без каста)
     public V get(String key){
         int i = hash(key);
         while (keys[i] != null) {
@@ -38,7 +44,6 @@ public class FastMap<V> implements Map<String, V> {
         return null;
     }
 
-    // Реализация из интерфейса Map (принимает Object)
     @Override
     public V get(Object key){
         if (!(key instanceof String)) return null;

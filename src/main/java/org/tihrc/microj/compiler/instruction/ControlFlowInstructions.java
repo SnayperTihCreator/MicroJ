@@ -1,12 +1,13 @@
 package org.tihrc.microj.compiler.instruction;
 
 import org.tihrc.microj.compiler.Instruction;
+import org.tihrc.microj.core.exceptions.ExceptionsRegistry;
 import org.tihrc.microj.core.exceptions.PyUnwind;
-import org.tihrc.microj.types.primitives.PyNone;
+import org.tihrc.microj.types.core.PyNone;
 import org.tihrc.microj.units.Frame;
 import org.tihrc.microj.core.*;
 import org.tihrc.microj.core.exceptions.Exceptions;
-import org.tihrc.microj.types.PyFunction;
+import org.tihrc.microj.types.callables.PyFunction;
 import org.tihrc.microj.types.primitives.PyBool;
 
 public class ControlFlowInstructions {
@@ -21,7 +22,7 @@ public class ControlFlowInstructions {
                 PyObject method = cond.findAttribute("__bool__");
                 if (method != null) {
                     PyObject res = vm.callSync(method, cond);
-                    truthy = !(res instanceof PyBool b) || b.value;
+                    truthy = !(res instanceof PyBool b) || b.pyDanderBool();
                 } else {
                     truthy = true;
                 }
@@ -53,7 +54,7 @@ public class ControlFlowInstructions {
                 PyObject method = cond.findAttribute("__bool__");
                 if (method != null) {
                     PyObject res = vm.callSync(method, cond);
-                    truthy = !(res instanceof PyBool b) || b.value;
+                    truthy = !(res instanceof PyBool b) || b.pyDanderBool();
                 } else {
                     truthy = true;
                 }
@@ -80,7 +81,7 @@ public class ControlFlowInstructions {
                 PyObject method = cond.findAttribute("__bool__");
                 if (method != null) {
                     PyObject res = vm.callSync(method, cond);
-                    truthy = !(res instanceof PyBool b) || b.value;
+                    truthy = !(res instanceof PyBool b) || b.pyDanderBool();
                 } else {
                     truthy = true;
                 }
@@ -126,7 +127,7 @@ public class ControlFlowInstructions {
                     f.stack.push(item);
                     return true;
                 } catch (PyUnwind e) {
-                    if (e.exception instanceof Exceptions.PyStopIteration) {
+                    if (ExceptionsRegistry.matches(e.payload, "StopIteration")){
                         f.stack.pop();
                         f.pc = target;
                         return false;
@@ -154,12 +155,10 @@ public class ControlFlowInstructions {
                                 }
                             },
                             exc -> {
-                                if (exc instanceof Exceptions.PyStopIteration) {
+                                if (ExceptionsRegistry.matches(exc, "StopIteration")) {
                                     f.stack.pop();
                                     f.pc = target;
-                                } else {
-                                    exc.raise();
-                                }
+                                } else ExceptionsRegistry.reraise(exc);
                             }
                     ));
                     return false;

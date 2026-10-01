@@ -4,21 +4,17 @@ import org.tihrc.microj.core.Interpreter;
 import org.tihrc.microj.core.transforms.Transforms;
 import org.tihrc.microj.core.exceptions.BaseExceptions;
 import org.tihrc.microj.core.exceptions.Exceptions;
-import org.tihrc.microj.types.*;
-import org.tihrc.microj.types.collections.PyString;
-import org.tihrc.microj.types.primitives.PyFloat;
-import org.tihrc.microj.types.primitives.PyNone;
-import org.tihrc.microj.units.SmartFloat;
+import org.tihrc.microj.types.callables.PyBuiltinFunction;
+import org.tihrc.microj.types.objects.PyModule;
+import org.tihrc.microj.types.core.PyNone;
 
 @SuppressWarnings("DataFlowIssue")
 public class PyModuleSys extends PyModule {
-    private String backend = "bytecode";
-
     public PyModuleSys(Interpreter interpreter) {
         super("sys");
 
-        registerAttribute("modules", () -> interpreter.getLib().getModulesDict());
-        registerAttribute("path", () -> interpreter.getLib().getSysPath());
+        registerAttribute("modules", () -> interpreter.state.modules);
+        registerAttribute("path", () -> interpreter.state.sysPath);
 
         registerAttribute("exit", new PyBuiltinFunction(((PyBuiltinFunction.CallVarArgs)(ctx, args) -> {
             if (args.length > 1)
@@ -30,16 +26,8 @@ public class PyModuleSys extends PyModule {
         })));
 
         registerAttribute("setrecursionlimit", new PyBuiltinFunction(((PyBuiltinFunction.Call1)(ctx, arg) -> {
-            interpreter.MAX_RECURSION_DEPTH = Transforms.fromPython(arg, int.class);
+            interpreter.state.recursionLimit = Transforms.fromPython(arg, int.class);
             return PyNone.INSTANCE;
         })));
-
-        registerAttribute("backend", () -> new PyString(backend));
-
-        registerAttribute("time_ms", new PyBuiltinFunction((ctx) -> new PyFloat(new SmartFloat(System.currentTimeMillis()))));
-    }
-
-    public void setBackend(String backend) {
-        this.backend = backend;
     }
 }

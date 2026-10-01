@@ -62,6 +62,8 @@ public class Protocols {
         PyObject pyDanderSub(PyObject other);
         PyObject pyDanderMul(PyObject other);
         PyObject pyDanderTrueDiv(PyObject other);
+        PyObject pyDanderFloorDiv(PyObject other);
+        PyObject pyDanderMod(PyObject other);
         PyObject pyDanderNeg();
     }
 

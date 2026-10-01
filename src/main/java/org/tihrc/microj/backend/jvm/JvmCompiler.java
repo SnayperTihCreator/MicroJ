@@ -7,13 +7,18 @@ import org.tihrc.microj.compiler.InstructionGenerator;
 import org.tihrc.microj.compiler.UnaryOperator;
 import org.tihrc.microj.compiler.instruction.*;
 import org.tihrc.microj.core.*;
-import org.tihrc.microj.core.exceptions.Exceptions;
-import org.tihrc.microj.core.exceptions.PyBaseException;
-import org.tihrc.microj.core.exceptions.PyUnwind;
-import org.tihrc.microj.types.PyClass;
+import org.tihrc.microj.core.exceptions.*;
+import org.tihrc.microj.types.core.PyContext;
+import org.tihrc.microj.types.core.PyNotImplemented;
+import org.tihrc.microj.types.objects.PyClass;
+import org.tihrc.microj.types.objects.PyInstance;
 import org.tihrc.microj.types.collections.*;
 import org.tihrc.microj.types.primitives.PyInt;
-import org.tihrc.microj.types.primitives.PyNone;
+import org.tihrc.microj.types.core.PyNone;
+import org.tihrc.microj.types.primitives.PyString;
+import org.tihrc.microj.types.runtime.PyCode;
+import org.tihrc.microj.types.sequences.PyGeneratorFunc;
+import org.tihrc.microj.units.Constants;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -21,6 +26,11 @@ import java.util.concurrent.atomic.AtomicLong;
 public class JvmCompiler implements Opcodes, AsmTypes {
     private static final AtomicLong CLASS_COUNTER = new AtomicLong(0);
     private static final AtomicLong FUNC_COUNTER = new AtomicLong(0);
+
+    private static final int JIT_BLOCK_SIZE = 50;
+
+    private record JitBlock(int id, int start, int end) {}
+    private record Jump(int from, int to) {}
 
     public JvmScript compile(InstructionGenerator.CompiledScript script){
         return compile(script.code(), script.constants());
@@ -32,7 +42,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
 
         MicroJClassLoader loader = new MicroJClassLoader(JvmCompiler.class.getClassLoader());
 
-        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
         cw.visit(V21, ACC_PUBLIC | ACC_FINAL, internalClassName, null, OBJECT, new String[]{JVM_SCRIPT});
 
         cw.visitField(ACC_PRIVATE | ACC_FINAL, "constants", PYARR_OBJECT, null, null).visitEnd();
@@ -48,17 +58,57 @@ public class JvmCompiler implements Opcodes, AsmTypes {
         init.visitMaxs(2, 2);
         init.visitEnd();
 
-        MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "execute", "(" + CTX_DESC + ")" + PYOBJECT_DESC, null, null);
-        mv.visitCode();
+        // 1. Анализируем и разбиваем скрипт на блоки
+        List<JitBlock> blocks = splitIntoBlocks(code);
 
+        // 2. Определяем переменные верхнего уровня
         Map<String, Integer> localSlots = new HashMap<>();
         int localsArraySize = 0;
+        for (Instruction instr : code) {
+            if (instr instanceof StackInstructions.StoreName(String n)) {
+                if (!localSlots.containsKey(n)) {
+                    localSlots.put(n, localsArraySize++);
+                }
+            }
+        }
 
+        // Спорные слоты для диспетчера
         int localsSlot = 2;
         int closureSlot = 3;
         int lastResultSlot = 4;
         int tempSlot = 5;
-        int nextSlot = 9;
+
+        String blockMethodDesc = "(L%s;[L%s;[L%s;L%s;)I".formatted(RUN_EXECUTER, PY_OBJECT, PY_OBJECT, PY_OBJECT);
+
+        // 3. Компилируем методы-блоки
+        for (JitBlock block : blocks) {
+            String blockMethodName = "block$" + block.id();
+            MethodVisitor bmv = cw.visitMethod(ACC_PRIVATE, blockMethodName, blockMethodDesc, null, null);
+            bmv.visitCode();
+
+            List<Instruction> subCode = code.subList(block.start(), block.end());
+
+            int blockCtxSlot = 1;
+            int blockLocalsSlot = 2;
+            int blockClosureSlot = 3;
+            int blockLastResultSlot = 4;
+            int blockTempSlot = 5;
+
+            compileBlock(cw, bmv, subCode, block.start(), block.end(), internalClassName, localSlots, new HashSet<>(),
+                    new HashMap<>(), blockLocalsSlot, blockClosureSlot, blockTempSlot, blockLastResultSlot, new HashSet<>(), new HashSet<>(), false);
+
+            if (subCode.isEmpty() || !(subCode.getLast() instanceof StackInstructions.ReturnValue)) {
+                pushInt(bmv, block.end() < code.size() ? block.end() : -1);
+                bmv.visitInsn(IRETURN);
+            }
+
+            bmv.visitMaxs(0, 0);
+            bmv.visitEnd();
+        }
+
+        // 4. Генерируем главный метод execute(...) с циклом диспетчеризации
+        MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "execute", "(" + CTX_DESC + ")" + PYOBJECT_DESC, null, null);
+        mv.visitCode();
 
         pushInt(mv, localsArraySize);
         mv.visitTypeInsn(ANEWARRAY, PY_OBJECT);
@@ -66,71 +116,245 @@ public class JvmCompiler implements Opcodes, AsmTypes {
 
         mv.visitInsn(ACONST_NULL);
         mv.visitVarInsn(ASTORE, closureSlot);
+        mv.visitInsn(ACONST_NULL);
+        mv.visitVarInsn(ASTORE, lastResultSlot);
 
-        for (int i = lastResultSlot; i < nextSlot; i++) {
-            mv.visitInsn(ACONST_NULL);
-            mv.visitVarInsn(ASTORE, i);
+        int pcSlot = 5;
+        pushInt(mv, 0); // pc = 0
+        mv.visitVarInsn(ISTORE, pcSlot);
+
+        Label loopStart = new Label();
+        Label loopEnd = new Label();
+
+        mv.visitLabel(loopStart);
+        mv.visitVarInsn(ILOAD, pcSlot);
+        mv.visitJumpInsn(IFLT, loopEnd); // while (pc >= 0)
+
+        Label defaultLabel = new Label();
+        Label[] switchLabels = new Label[blocks.size()];
+        int[] keys = new int[blocks.size()];
+
+        for (int i = 0; i < blocks.size(); i++) {
+            switchLabels[i] = new Label();
+            keys[i] = blocks.get(i).start();
         }
 
-        compileBlock(cw, mv, code, internalClassName, localSlots, new HashSet<>(), new HashMap<>(),
-                localsSlot, closureSlot, tempSlot, lastResultSlot, new HashSet<>(), new HashSet<>());
+        mv.visitVarInsn(ILOAD, pcSlot);
+        mv.visitLookupSwitchInsn(defaultLabel, keys, switchLabels);
 
-        if (code.isEmpty() || !(code.getLast() instanceof StackInstructions.ReturnValue)) {
+        for (int i = 0; i < blocks.size(); i++) {
+            JitBlock block = blocks.get(i);
+            mv.visitLabel(switchLabels[i]);
+
+            mv.visitVarInsn(ALOAD, 0);
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitVarInsn(ALOAD, localsSlot);
+            mv.visitVarInsn(ALOAD, closureSlot);
             mv.visitVarInsn(ALOAD, lastResultSlot);
-            mv.visitInsn(ARETURN);
+            mv.visitMethodInsn(INVOKEVIRTUAL, internalClassName, "block$" + block.id(), blockMethodDesc, false);
+
+            mv.visitVarInsn(ISTORE, pcSlot);
+            mv.visitJumpInsn(GOTO, loopStart);
         }
+
+        mv.visitLabel(defaultLabel);
+        pushInt(mv, -1);
+        mv.visitVarInsn(ISTORE, pcSlot);
+        mv.visitJumpInsn(GOTO, loopStart);
+
+        mv.visitLabel(loopEnd);
+        mv.visitVarInsn(ALOAD, lastResultSlot);
+        mv.visitInsn(ARETURN);
 
         mv.visitMaxs(0, 0);
         mv.visitEnd();
         cw.visitEnd();
 
-        byte[] bytecode = cw.toByteArray();
-        Class<?> compiledClass = loader.defineClass(className, bytecode);
+        byte[] bytecode1 = cw.toByteArray();
 
         try {
+            ClassReader cr = new ClassReader(bytecode1);
+            ClassWriter cw2 = new ClassWriter(ClassWriter.COMPUTE_FRAMES) {
+                @Override
+                protected String getCommonSuperClass(String type1, String type2) {
+                    return "java/lang/Object";
+                }
+            };
+
+            cr.accept(cw2, ClassReader.SKIP_FRAMES);
+            byte[] bytecode = cw2.toByteArray();
+
+            Class<?> compiledClass = loader.defineClass(className, bytecode);
             return (JvmScript) compiledClass.getDeclaredConstructor(PyObject[].class).newInstance((Object) constants);
+
         } catch (Exception e) {
+            System.err.println("[microj] JIT compile failed → bytecode: " + e);
+            e.printStackTrace();
             throw new RuntimeException("Failed to instantiate compiled script " + className, e);
         }
     }
 
-    private void compileBlock(ClassWriter cw, MethodVisitor mv, List<Instruction> code, String internalClassName,
-                              Map<String, Integer> localSlots, Set<String> cellVars, Map<String, Integer> outerSlots,
-                              int localsSlot, int closureSlot, int tempSlot, int lastResultSlot,
-                              Set<String> globals, Set<String> nonlocals) {
-        Map<Integer, Label> jumpTargets = new HashMap<>();
-        for (Instruction instr : code) {
-            final var target = getTarget(instr);
+    private List<JitBlock> splitIntoBlocks(List<Instruction> code) {
+        if (code.size() <= JIT_BLOCK_SIZE) {
+            return List.of(new JitBlock(0, 0, code.size()));
+        }
 
+        List<Jump> jumps = collectJumps(code);
+        List<JitBlock> blocks = new ArrayList<>();
+
+        int start = 0;
+        int id = 0;
+
+        while (start < code.size()) {
+            int target = Math.min(start + JIT_BLOCK_SIZE, code.size());
+
+            if (target == code.size()) {
+                blocks.add(new JitBlock(id++, start, code.size()));
+                break;
+            }
+
+            int boundary = findBoundary(code, jumps, start, target);
+
+            if (boundary == -1) {
+                boundary = findBoundaryForward(code, jumps, target);
+            }
+
+            if (boundary == -1) {
+                blocks.add(new JitBlock(id++, start, code.size()));
+                break;
+            }
+
+            blocks.add(new JitBlock(id++, start, boundary));
+            start = boundary;
+        }
+
+        debugBlocks(blocks);
+        return blocks;
+    }
+
+    private int findBoundary(List<Instruction> code, List<Jump> jumps, int start, int target) {
+        for (int boundary = target; boundary > start; boundary--) {
+            if (!isStackEmptyBoundary(code.get(boundary - 1))) {
+                continue;
+            }
+            if (crossesBoundary(jumps, boundary)) {
+                continue;
+            }
+            return boundary;
+        }
+        return -1;
+    }
+
+    private int findBoundaryForward(List<Instruction> code, List<Jump> jumps, int target) {
+        for (int boundary = target + 1; boundary < code.size(); boundary++) {
+            if (!isStackEmptyBoundary(code.get(boundary - 1))) {
+                continue;
+            }
+            if (crossesBoundary(jumps, boundary)) {
+                continue;
+            }
+            return boundary;
+        }
+        return -1;
+    }
+
+    private List<Jump> collectJumps(List<Instruction> code) {
+        List<Jump> jumps = new ArrayList<>();
+        for (int i = 0; i < code.size(); i++) {
+            Integer target = getTarget(code.get(i));
+            if (target != null) {
+                jumps.add(new Jump(i, target));
+            }
+        }
+        return jumps;
+    }
+
+    private boolean crossesBoundary(List<Jump> jumps, int boundary) {
+        for (Jump jump : jumps) {
+            boolean fromBefore = jump.from() < boundary;
+            boolean toBefore = jump.to() < boundary;
+            if (fromBefore != toBefore) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isStackEmptyBoundary(Instruction instruction) {
+        return switch (instruction) {
+            case StackInstructions.PopTop ignore -> true;
+            case StackInstructions.StoreName ignore -> true;
+//            case StackInstructions.StoreSubscript ignore -> true;
+            case StackInstructions.DeleteName ignore -> true;
+            case AttributeInstructions.SetAttr ignore -> true;
+            case ImportInstructions.Import ignore -> true;
+            case ImportInstructions.ImportFrom ignore -> true;
+            default -> false;
+        };
+    }
+
+    private void debugBlocks(List<JitBlock> blocks) {
+        System.out.println("[JIT] Split script into " + blocks.size() + " block(s):");
+        for (JitBlock block : blocks) {
+            System.out.printf("  [JIT] block$%d: %d..%d (%d instructions)%n",
+                    block.id(), block.start(), block.end() - 1, block.end() - block.start());
+        }
+    }
+
+    private void compileBlock(ClassWriter cw, MethodVisitor mv, List<Instruction> code, int blockStart, int blockEnd,
+                              String internalClassName, Map<String, Integer> localSlots, Set<String> cellVars,
+                              Map<String, Integer> outerSlots, int localsSlot, int closureSlot, int tempSlot,
+                              int lastResultSlot, Set<String> globals, Set<String> nonlocals, boolean functionBody) {
+
+        Map<Integer, Label> jumpTargets = new HashMap<>();
+
+        for (int i = 0; i < code.size(); i++) {
+            int absIndex = blockStart + i;
+            Integer target = getTarget(code.get(i));
             if (target != null) {
                 jumpTargets.computeIfAbsent(target, k -> new Label());
             }
         }
 
+        Set<Integer> catchTargets = new HashSet<>();
+        for (Instruction instruction : code) {
+            if (instruction instanceof ErrorInstructions.SetupExcept(int target)) {
+                catchTargets.add(target);
+            }
+        }
+
         List<Object[]> tryCatchBlocks = new ArrayList<>();
         for (int i = 0; i < code.size(); i++) {
+            int absIndex = blockStart + i;
             if (code.get(i) instanceof ErrorInstructions.SetupExcept(int target)) {
-                Label tryStart = jumpTargets.computeIfAbsent(i + 1, k -> new Label());
-                Label catchStart = jumpTargets.get(target);
+                Label tryStart = jumpTargets.computeIfAbsent(absIndex + 1, k -> new Label());
+                Label catchStart = jumpTargets.computeIfAbsent(target, k -> new Label());
 
                 int popTryIndex = -1;
+                int depth = 0;
                 for (int j = i + 1; j < code.size(); j++) {
-                    if (code.get(j) instanceof ErrorInstructions.PopTry) {
-                        popTryIndex = j;
-                        break;
+                    if (code.get(j) instanceof ErrorInstructions.SetupExcept) depth++;
+                    else if (code.get(j) instanceof ErrorInstructions.PopTry) {
+                        if (depth == 0) { popTryIndex = blockStart + j; break; }
+                        depth--;
                     }
                 }
                 Label tryEnd;
                 if (popTryIndex != -1) tryEnd = jumpTargets.computeIfAbsent(popTryIndex, k -> new Label());
-                else tryEnd = jumpTargets.computeIfAbsent(code.size(), k -> new Label());
+                else tryEnd = jumpTargets.computeIfAbsent(blockEnd, k -> new Label());
                 tryCatchBlocks.add(new Object[]{tryStart, tryEnd, catchStart});
             }
         }
 
         for (int i = 0; i < code.size(); i++) {
+            int absIndex = blockStart + i;
             Instruction instr = code.get(i);
-            if (jumpTargets.containsKey(i)) {
-                mv.visitLabel(jumpTargets.get(i));
+
+            if (jumpTargets.containsKey(absIndex)) {
+                mv.visitLabel(jumpTargets.get(absIndex));
+                if (catchTargets.contains(absIndex)) {
+                    mv.visitFieldInsn(GETFIELD, PY_UNWIND, "payload", "L%s;".formatted(PY_OBJECT));
+                }
             }
 
             switch (instr) {
@@ -138,7 +362,15 @@ public class JvmCompiler implements Opcodes, AsmTypes {
                 case StackInstructions.StoreName(String name) -> emitStoreName(mv, name, localSlots, cellVars, localsSlot, closureSlot, outerSlots, nonlocals);
                 case StackInstructions.LoadName(String name) -> emitLoadName(mv, name, localSlots, cellVars, outerSlots, localsSlot, closureSlot);
                 case StackInstructions.PopTop ignore -> mv.visitVarInsn(ASTORE, lastResultSlot);
-                case StackInstructions.ReturnValue ignore -> mv.visitInsn(ARETURN);
+                case StackInstructions.ReturnValue ignore -> {
+                    if (functionBody) {
+                        mv.visitInsn(ARETURN);
+                    } else {
+                        mv.visitVarInsn(ASTORE, lastResultSlot);
+                        pushInt(mv, -1);
+                        mv.visitInsn(IRETURN);
+                    }
+                }
                 case StackInstructions.DeleteName(String name) -> emitDeleteName(mv, name, localSlots, localsSlot);
                 case StackInstructions.Global(String ignore) -> {}
                 case StackInstructions.Nonlocal(String ignore) -> {}
@@ -156,9 +388,9 @@ public class JvmCompiler implements Opcodes, AsmTypes {
                 case ErrorInstructions.SetupExcept(int ignore) -> {}
                 case ErrorInstructions.PopTry() -> {}
                 case ErrorInstructions.ReRaise() ->
-                        mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "reRaise", "(L%s;)V".formatted(OBJECT), false);
+                        mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "reRaise", "(L%s;)V".formatted(PY_OBJECT), false);
                 case ErrorInstructions.CheckException(String typeName, int target) ->
-                        emitCheckException(mv, typeName, target, jumpTargets);
+                        emitCheckException(mv, typeName, target, jumpTargets, blockStart, blockEnd);
                 case ErrorInstructions.Assert() -> emitAssert(mv);
                 case ErrorInstructions.RaiseException() -> emitRaiseException(mv);
 
@@ -168,10 +400,10 @@ public class JvmCompiler implements Opcodes, AsmTypes {
                 case BuilderInstructions.BuildMap(int size) -> emitBuildMap(mv, size, tempSlot);
                 case BuilderInstructions.UnpackSequence(int count) -> emitUnpackSequence(mv, count, tempSlot);
 
-                case ControlFlowInstructions.PopJumpIfFalse(int target) -> emitPopJumpIfFalse(mv, jumpTargets, target);
-                case ControlFlowInstructions.JumpAbsolute(int target) -> mv.visitJumpInsn(GOTO, jumpTargets.get(target));
+                case ControlFlowInstructions.PopJumpIfFalse(int target) -> emitPopJumpIfFalse(mv, jumpTargets, target, blockStart, blockEnd);
+                case ControlFlowInstructions.JumpAbsolute(int target) -> emitJumpAbsolute(mv, jumpTargets, target, blockStart, blockEnd);
                 case ControlFlowInstructions.GetIter() -> emitGetIter(mv);
-                case ControlFlowInstructions.ForIter(int target) -> emitForIter(mv, jumpTargets, target);
+                case ControlFlowInstructions.ForIter(int target) -> emitForIter(mv, jumpTargets, target, blockStart, blockEnd);
 
                 case CallInstructions.MakeFunction(String name, List<Instruction> body, List<String> params, String starArg, String kwArg, List<String> freeVars) ->
                         emitMakeFunction(cw, internalClassName, body, mv, params, name, starArg, kwArg, freeVars,
@@ -185,16 +417,75 @@ public class JvmCompiler implements Opcodes, AsmTypes {
                 case AttributeInstructions.GetAttr(String name) -> emitGetAttr(mv, name);
                 case AttributeInstructions.SetAttr(String name) -> emitSetAttr(mv, name, tempSlot);
                 default -> throw new UnsupportedOperationException("Instruction not supported: " + instr.getClass().getSimpleName());
-
             }
         }
 
-        if (jumpTargets.containsKey(code.size())) {
-            mv.visitLabel(jumpTargets.get(code.size()));
+        if (jumpTargets.containsKey(blockEnd)) {
+            mv.visitLabel(jumpTargets.get(blockEnd));
         }
 
-        for (var tcb : tryCatchBlocks) {
+        for (int k = tryCatchBlocks.size() - 1; k >= 0; k--) {
+            var tcb = tryCatchBlocks.get(k);
             mv.visitTryCatchBlock((Label) tcb[0], (Label) tcb[1], (Label) tcb[2], PY_UNWIND);
+        }
+    }
+
+    private static void emitJumpAbsolute(MethodVisitor mv, Map<Integer, Label> jumpTargets, int target, int blockStart, int blockEnd) {
+        if (target >= blockStart && target < blockEnd) {
+            mv.visitJumpInsn(GOTO, jumpTargets.get(target));
+        } else {
+            pushInt(mv, target);
+            mv.visitInsn(IRETURN);
+        }
+    }
+
+    private static void emitPopJumpIfFalse(MethodVisitor mv, Map<Integer, Label> jumpTargets, int target, int blockStart, int blockEnd) {
+        mv.visitTypeInsn(CHECKCAST, PYP_COMPARABLE);
+        mv.visitMethodInsn(INVOKEINTERFACE, PYP_COMPARABLE, "pyDanderBool", "()Z", true);
+        if (target >= blockStart && target < blockEnd) {
+            mv.visitJumpInsn(IFEQ, jumpTargets.get(target));
+        } else {
+            Label skip = new Label();
+            mv.visitJumpInsn(IFNE, skip);
+            pushInt(mv, target);
+            mv.visitInsn(IRETURN);
+            mv.visitLabel(skip);
+        }
+    }
+
+    private static void emitForIter(MethodVisitor mv, Map<Integer, Label> jumpTargets, int target, int blockStart, int blockEnd) {
+        mv.visitInsn(DUP);
+        mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "forIterNext", "(L%s;)L%s;".formatted(PY_OBJECT, PY_OBJECT), false);
+
+        mv.visitInsn(DUP);
+        Label notNull = new Label();
+        mv.visitJumpInsn(IFNONNULL, notNull);
+
+        mv.visitInsn(POP);
+        mv.visitInsn(POP);
+
+        if (target >= blockStart && target < blockEnd) {
+            mv.visitJumpInsn(GOTO, jumpTargets.get(target));
+        } else {
+            pushInt(mv, target);
+            mv.visitInsn(IRETURN);
+        }
+
+        mv.visitLabel(notNull);
+    }
+
+    private static void emitCheckException(MethodVisitor mv, String typeName, int target, Map<Integer, Label> jumpTargets, int blockStart, int blockEnd) {
+        if (typeName == null) {
+            emitJumpAbsolute(mv, jumpTargets, target, blockStart, blockEnd);
+        } else {
+            mv.visitInsn(DUP);
+            mv.visitLdcInsn(typeName);
+            mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "matchesException",
+                    "(L%s;L%s;)Z".formatted(PY_OBJECT, STRING), false);
+            Label next = new Label();
+            mv.visitJumpInsn(IFEQ, next);
+            emitJumpAbsolute(mv, jumpTargets, target, blockStart, blockEnd);
+            mv.visitLabel(next);
         }
     }
 
@@ -311,15 +602,14 @@ public class JvmCompiler implements Opcodes, AsmTypes {
             mv.visitInsn(AASTORE);
         }
 
-        compileBlock(cw, mv, body, internalClassName, localSlots, cellVars, outerSlots,
-                localsSlot, closureSlot, tempSlot, lastResultSlot, globals, nonlocals);
+        compileBlock(cw, mv, body, 0, body.size(), internalClassName, localSlots, cellVars, outerSlots,
+                localsSlot, closureSlot, tempSlot, lastResultSlot, globals, nonlocals, true);
 
         if (body.isEmpty() || !(body.getLast() instanceof StackInstructions.ReturnValue)) {
             mv.visitVarInsn(ALOAD, lastResultSlot);
             mv.visitInsn(ARETURN);
         }
 
-        mv.visitMaxs(0, 0);
         mv.visitEnd();
     }
 
@@ -548,6 +838,8 @@ public class JvmCompiler implements Opcodes, AsmTypes {
             case SUB -> emitNumberOp(mv, "pyDanderSub", "__sub__");
             case MUL -> emitNumberOp(mv, "pyDanderMul", "__mul__");
             case DIV -> emitNumberOp(mv, "pyDanderTrueDiv", "__truediv__");
+            case FLOOR_DIV -> emitNumberOp(mv, "pyDanderFloorDiv", "__floordiv__");
+            case MOD -> emitNumberOp(mv, "pyDanderMod", "__mod__");
             case EQ -> emitCompOp(mv, "pyDanderEq", "__eq__");
             case NE -> emitCompOp(mv, "pyDanderNe", "__ne__");
             case LT -> emitCompOp(mv, "pyDanderLt", "__lt__");
@@ -645,12 +937,6 @@ public class JvmCompiler implements Opcodes, AsmTypes {
         mv.visitLabel(labelTrue);
         mv.visitFieldInsn(GETSTATIC, PY_BOOL, "FALSE", "L%s;".formatted(PY_BOOL));
         mv.visitLabel(labelEnd);
-    }
-
-    private static void emitPopJumpIfFalse(MethodVisitor mv, Map<Integer, Label> jumpTargets, int target) {
-        mv.visitTypeInsn(CHECKCAST, PYP_COMPARABLE);
-        mv.visitMethodInsn(INVOKEINTERFACE, PYP_COMPARABLE, "pyDanderBool", "()Z", true);
-        mv.visitJumpInsn(IFEQ, jumpTargets.get(target));
     }
 
     private void emitMakeFunction(ClassWriter cw, String internalClassName, List<Instruction> body, MethodVisitor mv,
@@ -766,6 +1052,8 @@ public class JvmCompiler implements Opcodes, AsmTypes {
                                           int localsSlot, int closureSlot, int tempSlot, List<String> params,
                                           String starArg, String kwArg, List<String> freeVars,
                                           Map<String, Integer> localSlots, Map<String, Integer> outerSlots) {
+        mv.visitVarInsn(ASTORE, tempSlot + 3);
+
         mv.visitVarInsn(ALOAD, 1);
         emitLoadConst(mv, internalClassName, codeIndex);
         mv.visitLdcInsn(name);
@@ -818,30 +1106,28 @@ public class JvmCompiler implements Opcodes, AsmTypes {
             mv.visitTypeInsn(CHECKCAST, PY_CELL);
             mv.visitInsn(AASTORE);
         }
+        mv.visitVarInsn(ALOAD, tempSlot + 3);
         mv.visitVarInsn(ALOAD, tempSlot + 4);
         mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "makeGeneratorFunction",
-                "(L%s;L%s;L%s;L%s;[L%s;%s;L%s;L%s;%s;[L%s;)L%s;".formatted(PY_OBJECT, RUN_EXECUTER, PY_OBJECT, STRING, PY_OBJECT, STRING_ARR, STRING, STRING, STRING_ARR, PY_OBJECT, PY_OBJECT), false);
+                "(L%s;L%s;L%s;%s%sL%s;L%s;%sL%s;%s)L%s;".formatted(
+                        RUN_EXECUTER,   // RuntimeExecuter
+                        PY_OBJECT,      // PyObject codeObj
+                        STRING,         // String name
+                        PYARR_OBJECT,   // PyObject[] constants
+                        STRING_ARR,     // String[] params
+                        STRING,         // String starArg
+                        STRING,         // String kwArg
+                        STRING_ARR,     // String[] freeVars
+                        PY_OBJECT,      // PyObject defaults
+                        PYARR_OBJECT,   // PyObject[] closureArray
+                        PY_OBJECT       // return
+                ), false);
     }
 
     private static void emitGetIter(MethodVisitor mv) {
         mv.visitVarInsn(ALOAD, 1);
         mv.visitInsn(SWAP);
         mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "getIter", "(L%s;L%s;)L%s;".formatted(RUN_EXECUTER, PY_OBJECT, PY_OBJECT), false);
-    }
-
-    private static void emitForIter(MethodVisitor mv, Map<Integer, Label> jumpTargets, int target) {
-        mv.visitInsn(DUP);
-        mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "forIterNext", "(L%s;)L%s;".formatted(PY_OBJECT, PY_OBJECT), false);
-
-        mv.visitInsn(DUP);
-        Label notNull = new Label();
-        mv.visitJumpInsn(IFNONNULL, notNull);
-
-        mv.visitInsn(POP);
-        mv.visitInsn(POP);
-        mv.visitJumpInsn(GOTO, jumpTargets.get(target));
-
-        mv.visitLabel(notNull);
     }
 
     private static void emitImport(MethodVisitor mv, String moduleName, String alias) {
@@ -871,26 +1157,6 @@ public class JvmCompiler implements Opcodes, AsmTypes {
 
         mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "doImportFrom",
                 "(L%s;L%s;[L%s;)V".formatted(RUN_EXECUTER, STRING, STRING), false);
-    }
-
-    private static void emitCheckException(MethodVisitor mv, String typeName, int target, Map<Integer, Label> jumpTargets) {
-        if (typeName == null) {
-            mv.visitFieldInsn(GETFIELD, PY_UNWIND, "exception", "L%s;".formatted(PY_BASE_EXCEPTION));
-            mv.visitJumpInsn(GOTO, jumpTargets.get(target));
-        } else {
-            mv.visitInsn(DUP);
-            mv.visitFieldInsn(GETFIELD, PY_UNWIND, "exception", "L%s;".formatted(PY_BASE_EXCEPTION));
-            mv.visitTypeInsn(INSTANCEOF, "%score/exceptions/Exceptions$Py%s".formatted(PREFIX, typeName));
-
-            Label next = new Label();
-            mv.visitJumpInsn(IFEQ, next);
-
-            mv.visitInsn(POP);
-            mv.visitFieldInsn(GETFIELD, PY_UNWIND, "exception", "L%s;".formatted(PY_BASE_EXCEPTION));
-            mv.visitJumpInsn(GOTO, jumpTargets.get(target));
-
-            mv.visitLabel(next);
-        }
     }
 
     private static void emitRaiseException(MethodVisitor mv) {
@@ -929,27 +1195,26 @@ public class JvmCompiler implements Opcodes, AsmTypes {
     }
 
     @SuppressWarnings("unused")
-    public static PyObject buildClass(String name, Map<String, PyObject> localsMap, String[] bases, RuntimeExecuter ctx) {
-        List<PyClass> resolvedBases = new ArrayList<>();
-        for (String baseName : bases) {
-            PyObject baseObj = ctx.getGlobals().get(baseName);
-            if (baseObj instanceof PyClass baseClass) {
-                resolvedBases.add(baseClass);
-            }
+    public static PyObject buildClass(String name, Map<String, PyObject> attrs,
+                                      String[] baseNames, RuntimeExecuter ctx) {
+        List<PyClass> bases = new ArrayList<>();
+        for (String bn : baseNames) {
+            PyObject base = ctx.getGlobals().get(bn);
+            if (base == null) base = ctx.getBuiltins().findAttribute(bn);
+            if (!(base instanceof PyClass pc))
+                return new Exceptions.PyNameError("name '" + bn + "' is not defined").raise();
+            bases.add(pc);
         }
-        PyClass pyClass = new PyClass(name, localsMap, resolvedBases);
-        for (Capability cap : Capability.values()) {
-            if (cap.matches(localsMap)) pyClass.addCap(cap);
-        }
-        return pyClass;
+        return new PyClass(name, attrs, bases);
     }
 
     @SuppressWarnings("unused")
-    public static PyObject makeGeneratorFunction(PyObject defaults, RuntimeExecuter ctx, PyObject codeObj, String name,
-                                                 PyObject[] constants, String[] params, String starArg,
-                                                 String kwArg, String[] freeVars, PyObject[] closureArray) {
+    public static PyObject makeGeneratorFunction(
+            RuntimeExecuter ctx, PyObject codeObj, String name, PyObject[] constants,
+            String[] params, String starArg, String kwArg, String[] freeVars,
+            PyObject defaults,PyObject[] closureArray) {
         PyCode code = (PyCode) codeObj;
-        java.util.Map<String, PyObject> closureMap = new java.util.HashMap<>();
+        Map<String, PyObject> closureMap = new HashMap<>();
         for (int i = 0; i < freeVars.length; i++)
             closureMap.put(freeVars[i], closureArray[i]);
         return new PyGeneratorFunc(name, code.body, List.of(params), starArg, kwArg, closureMap, defaults, constants);
@@ -963,6 +1228,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
         }
         throw new RuntimeException("Unsupported operand type for " + dunderName);
     }
+
     @SuppressWarnings("unused")
     public static PyObject getIter(RuntimeExecuter ctx, PyObject obj) {
         if (obj instanceof Protocols.PyIterable iter) {
@@ -970,9 +1236,10 @@ public class JvmCompiler implements Opcodes, AsmTypes {
         }
         PyObject method = obj.findAttribute("__iter__");
         if (method instanceof Protocols.PyCallable callable) {
-            return callable.pyDanderCallFast(ctx, new PyObject[]{obj}, JitFunction.EMPTY_KW_NAMES, JitFunction.EMPTY_KW_VALS);
+            return callable.pyDanderCallFast(ctx,
+                    Constants.NO_ARGS, Constants.NO_KW_NAMES, Constants.NO_KW_VALUES);
         }
-        throw new RuntimeException("object is not iterable");
+        return new Exceptions.PyTypeError("object %s is not an iterable".formatted(obj.pyDanderRepr())).raise();
     }
 
     @SuppressWarnings("unused")
@@ -981,17 +1248,29 @@ public class JvmCompiler implements Opcodes, AsmTypes {
             if (iter instanceof Protocols.PyIterator pyIter) {
                 return pyIter.pyDanderNext();
             }
-            throw new RuntimeException("object is not an iterator");
-        } catch (PyUnwind e) {
-            if (e.exception instanceof Exceptions.PyStopIteration) {
-                return null;
+            PyObject nextMethod = iter.findAttribute("__next__");
+            if (nextMethod instanceof Protocols.PyCallable callable) {
+                RuntimeExecuter ctx = PyContext.current();
+                return callable.pyDanderCallFast(ctx,
+                        Constants.NO_ARGS, Constants.NO_KW_NAMES, Constants.NO_KW_VALUES);
             }
+            return new Exceptions.PyTypeError("object %s is not an iterator".formatted(iter.pyDanderRepr())).raise();
+
+        } catch (PyUnwind e) {
+            if (ExceptionsRegistry.matches(e.payload, "StopIteration"))
+                return null;
             throw e;
+
+        } catch (Throwable t) {
+            System.err.println("[JIT] UNEXPECTED EXCEPTION in forIterNext:");
+            t.printStackTrace();
+            throw new RuntimeException("Unexpected error in forIterNext", t);
         }
     }
+
     @SuppressWarnings("unused")
     public static void doImport(RuntimeExecuter ctx, String moduleName, String alias) {
-        var module = ctx.getInterpreter().getLib().resolveModule(moduleName, ctx);
+        var module = ctx.getVM().getLib().resolveModule(moduleName, ctx);
         if (module != null) {
             String storeName = (alias != null) ? alias : moduleName;
             ctx.getGlobals().put(storeName, module);
@@ -1000,7 +1279,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
 
     @SuppressWarnings("unused")
     public static void doImportFrom(RuntimeExecuter ctx, String moduleName, String[] names) {
-        var module = ctx.getInterpreter().getLib().resolveModule(moduleName, ctx);
+        var module = ctx.getVM().getLib().resolveModule(moduleName, ctx);
         if (module != null) {
             for (String name : names) {
                 PyObject attr = module.findAttribute(name);
@@ -1012,13 +1291,10 @@ public class JvmCompiler implements Opcodes, AsmTypes {
     }
 
     @SuppressWarnings("unused")
-    public static void reRaise(Object obj) {
-        if (obj instanceof PyUnwind unwind) {
-            throw unwind;
-        } else if (obj instanceof PyBaseException exc) {
-            exc.raise();
-        }
-        throw new RuntimeException("Cannot re-raise " + obj);
+    public static void reRaise(PyObject payload) {
+        if (payload == null)
+            new Exceptions.PyRuntimeError("No active exception to re-raise").raise();
+        throw new PyUnwind(payload);
     }
 
     @SuppressWarnings("unused")
@@ -1063,7 +1339,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
         }
 
         if (!truthy) {
-            String msgStr = (msg == org.tihrc.microj.types.primitives.PyNone.INSTANCE) ? "assertion failed" : msg.toString();
+            String msgStr = (msg == PyNone.INSTANCE) ? "assertion failed" : msg.toString();
             throw new PyUnwind(new Exceptions.PyAssertionError(msgStr));
         }
     }
@@ -1138,14 +1414,24 @@ public class JvmCompiler implements Opcodes, AsmTypes {
     }
 
     @SuppressWarnings("unused")
-    public static void raiseException(RuntimeExecuter ctx, PyObject exc) {
-        if (exc instanceof PyClass) {
-            exc = ((PyClass) exc).pyDanderCallFast(ctx, new PyObject[0], JitFunction.EMPTY_KW_NAMES, JitFunction.EMPTY_KW_VALS);
+    public static void raiseException(RuntimeExecuter vm, PyObject exc) {
+        if (exc instanceof PyClass cls) {
+            if (!ExceptionsRegistry.isExceptionClass(cls))
+                new Exceptions.PyTypeError("exceptions must derive from BaseException").raise();
+            exc = vm.callSyncFast(cls, Constants.NO_ARGS, Constants.NO_KW_NAMES, Constants.NO_KW_VALUES);
         }
-        if (exc instanceof PyBaseException pyExc) {
-            pyExc.raise();
-        } else {
-            throw new PyUnwind(new Exceptions.PyTypeError("exceptions must derive from BaseException"));
+        if (exc instanceof PyInstance inst) {
+            if (!ExceptionsRegistry.isExceptionClass(inst.pyClass))
+               new Exceptions.PyTypeError("exceptions must derive from BaseException").raise();
+            throw new PyUnwind(inst);
         }
+        if (exc instanceof PyBaseException pe)
+            throw new PyUnwind(pe);
+        new Exceptions.PyTypeError("exceptions must derive from BaseException").raise();
+    }
+
+    @SuppressWarnings("unused")
+    public static boolean matchesException(PyObject exc, String typeName) {
+        return ExceptionsRegistry.matches(exc, typeName);
     }
 }

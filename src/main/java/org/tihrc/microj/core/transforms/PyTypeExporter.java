@@ -25,6 +25,7 @@ public class PyTypeExporter extends ClassValue<FastMap<PyObject>> {
     protected FastMap<PyObject> computeValue(Class<?> type) {
         FastMap<PyObject> methods = new FastMap<>();
         for (Method method : type.getMethods()) {
+            if (method.getDeclaringClass() == PyObject.class) continue;
             PyExport exp = findAnnotation(method);
             if (exp != null) {
                 String name = exp.name().isEmpty() ? method.getName() : exp.name();
@@ -39,7 +40,7 @@ public class PyTypeExporter extends ClassValue<FastMap<PyObject>> {
         if (exp != null) return exp;
 
         Class<?> sup = m.getDeclaringClass().getSuperclass();
-        while (sup != null) {
+        while (sup != null && sup != PyObject.class) {
             try {
                 Method supMethod = sup.getDeclaredMethod(m.getName(), m.getParameterTypes());
                 exp = supMethod.getAnnotation(PyExport.class);

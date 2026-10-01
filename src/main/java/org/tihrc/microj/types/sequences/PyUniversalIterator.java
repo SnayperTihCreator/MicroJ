@@ -1,4 +1,4 @@
-package org.tihrc.microj.types.collections;
+package org.tihrc.microj.types.sequences;
 
 import org.tihrc.microj.core.Protocols;
 import org.tihrc.microj.core.PyObject;

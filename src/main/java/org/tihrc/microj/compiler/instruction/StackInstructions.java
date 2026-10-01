@@ -2,7 +2,7 @@ package org.tihrc.microj.compiler.instruction;
 
 import org.tihrc.microj.compiler.Instruction;
 import org.tihrc.microj.types.core.PyCell;
-import org.tihrc.microj.types.primitives.PyNone;
+import org.tihrc.microj.types.core.PyNone;
 import org.tihrc.microj.units.Frame;
 import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.RuntimeExecuter;

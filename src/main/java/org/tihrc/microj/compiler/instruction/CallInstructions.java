@@ -4,9 +4,13 @@ import org.tihrc.microj.compiler.Instruction;
 import org.tihrc.microj.core.*;
 import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.core.transforms.PyMethodProxy;
-import org.tihrc.microj.types.*;
-import org.tihrc.microj.types.collections.PyGeneratorFunc;
+import org.tihrc.microj.types.callables.PyBoundMethod;
+import org.tihrc.microj.types.callables.PyFunction;
+import org.tihrc.microj.types.sequences.PyGeneratorFunc;
 import org.tihrc.microj.types.core.PyCell;
+import org.tihrc.microj.types.objects.PyModule;
+import org.tihrc.microj.types.runtime.PyCode;
+import org.tihrc.microj.units.Constants;
 import org.tihrc.microj.units.FastMap;
 import org.tihrc.microj.units.Frame;
 
@@ -15,10 +19,6 @@ import java.util.List;
 import java.util.Map;
 
 public class CallInstructions {
-    public static final PyObject[] NO_ARGS = new PyObject[0];
-    public static final String[] NO_KW_NAMES = new String[0];
-    public static final PyObject[] NO_KW_VALUES = new PyObject[0];
-
     private static PyObject preBindFreeVars(Frame f, RuntimeExecuter ctx, List<String> freeVars, Map<String, PyObject> closure) {
         PyObject defaults = f.stack.pop();
         if (f.locals != ctx.getGlobals()) {
@@ -75,7 +75,7 @@ public class CallInstructions {
             }
 
             PyObject[] args;
-            if (posCount == 0) args = NO_ARGS;
+            if (posCount == 0) args = Constants.NO_ARGS;
             else {
                 args = new PyObject[posCount];
                 for (int i = posCount - 1; i >= 0; i--) args[i] = f.stack.pop();

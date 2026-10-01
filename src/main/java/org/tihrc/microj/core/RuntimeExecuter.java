@@ -3,8 +3,12 @@ package org.tihrc.microj.core;
 import org.tihrc.microj.compiler.Instruction;
 import org.tihrc.microj.compiler.InstructionGenerator;
 import org.tihrc.microj.core.exceptions.*;
-import org.tihrc.microj.types.PyModule;
-import org.tihrc.microj.types.primitives.PyNone;
+import org.tihrc.microj.types.collections.PyTuple;
+import org.tihrc.microj.types.core.PyNone;
+import org.tihrc.microj.types.objects.PyInstance;
+import org.tihrc.microj.types.objects.PyModule;
+import org.tihrc.microj.types.primitives.PyInt;
+import org.tihrc.microj.units.Constants;
 import org.tihrc.microj.units.FastMap;
 import org.tihrc.microj.units.Frame;
 import org.tihrc.microj.units.FrameTask;
@@ -21,12 +25,12 @@ public class RuntimeExecuter {
         this.interpreter = interpreter;
     }
 
-    public Interpreter getInterpreter() { return interpreter; }
+    public Interpreter getVM() { return interpreter; }
     public Map<String, PyObject> getGlobals() { return globals; }
     public PyModule getBuiltins() { return this.interpreter.getLib().getBuiltins(); }
 
     public void pushTask(FrameTask task) {
-        if (frameTasks.size() > interpreter.MAX_RECURSION_DEPTH)
+        if (frameTasks.size() > interpreter.state.recursionLimit)
             new Exceptions.PyRecursionError("maximum recursion depth exceeded").raise();
         frameTasks.push(task);
     }
@@ -50,11 +54,8 @@ public class RuntimeExecuter {
 
     public PyObject run(InstructionGenerator.CompiledScript script) {
         pushTask(Frame.fromGlobals(script.code(), globals, script.constants()).createTask());
-        try {
-            executeTasks(0);
-        } catch (PyUnwind e) {
-            return raised(e.exception);
-        }
+        try { executeTasks(0); }
+        catch (PyUnwind e) { return raised(e); }
         return PyNone.INSTANCE;
     }
 
@@ -77,6 +78,26 @@ public class RuntimeExecuter {
         return new Exceptions.PyTypeError("%s is not callable".formatted(func.pyDanderRepr())).raise();
     }
 
+    public PyObject callSyncFast(PyObject func) throws PyUnwind {
+        if  (func instanceof Protocols.PyCallable callable){
+            return callable.pyDanderCallFast(this, Constants.NO_ARGS, Constants.NO_KW_NAMES, Constants.NO_KW_VALUES);
+        }
+        PyObject callDunder = func.findAttribute("__call__");
+        if (callDunder != null)
+            return callSync(callDunder, Constants.NO_ARGS, null);
+        return new Exceptions.PyTypeError("%s is not callable".formatted(func.pyDanderRepr())).raise();
+    }
+
+    public PyObject callSyncFast(PyObject func, PyObject[] args, String[] kwNames, PyObject[] kwValues) throws PyUnwind {
+        if  (func instanceof Protocols.PyCallable callable){
+            return callable.pyDanderCallFast(this, args, kwNames, kwValues);
+        }
+        PyObject callDunder = func.findAttribute("__call__");
+        if (callDunder != null)
+            return callSync(callDunder, args, FastMap.from(kwNames, kwValues));
+        return new Exceptions.PyTypeError("%s is not callable".formatted(func.pyDanderRepr())).raise();
+    }
+
     public void runUntil(int targetSize) throws PyUnwind {
         this.executeTasks(targetSize);
     }
@@ -93,14 +114,7 @@ public class RuntimeExecuter {
     }
 
     public long runInstructions(InstructionGenerator.CompiledScript script) throws PyUnwind {
-        pushTask(new FrameTask(
-                Frame.fromGlobals(
-                        script.code(),
-                        globals,
-                        script.constants()
-                )
-        ));
-
+        pushTask(new FrameTask(Frame.fromGlobals(script.code(), globals, script.constants())));
         return executeTasks(0);
     }
 
@@ -130,21 +144,15 @@ public class RuntimeExecuter {
                     frame.pc++;
                 }
             } catch (PyUnwind e) {
-                PyBaseException pyExc = e.exception;
-
-                if (pyExc instanceof BaseExceptions.PySystemExit) {
-                    throw e;
-                }
-
                 if (frame.tryHandlers != null && !frame.tryHandlers.isEmpty()) {
                     int[] handler = frame.tryHandlers.pop();
                     frame.stack.clear();
-                    frame.stack.push(pyExc);
+                    frame.stack.push(e.payload);
                     frame.pc = handler[0];
                     continue;
                 }
                 if (task.onFailure() != null) {
-                    task.onFailure().accept(pyExc);
+                    task.onFailure().accept(e.payload);
                     continue;
                 }
                 throw e;
@@ -153,16 +161,23 @@ public class RuntimeExecuter {
         return executedInstructions;
     }
 
-    public PyObject raised(PyBaseException e) {
-        if (e instanceof BaseExceptions.PySystemExit systemExit) {
-            if (systemExit.getExitCode() == 0)
-                return PyNone.INSTANCE;
+    public PyObject raised(PyUnwind e) {
+        PyObject exc = e.payload;
+
+        Integer code = ExceptionsRegistry.systemExitCode(exc);
+        if (code != null) {
+            if (exc instanceof PyInstance inst) {
+                PyObject a = inst.attrs.get("args");
+                if (a instanceof PyTuple t && t.getInner().length > 0
+                        && !(t.getInner()[0] instanceof PyInt))
+                    System.err.println(t.getInner()[0].pyDanderStr());
+            }
+            return code == 0 ? PyNone.INSTANCE : exc;
         }
 
-        e.setContext(new RaisedContext("module", -1));
         System.err.println("Traceback (most recent call last):");
-        System.err.println(e.getContext());
-        System.err.println(e.getErrorType() + ": " + e.getMessage());
-        return e;
+        if (e.ctx != null) System.err.println(e.ctx);
+        System.err.println(ExceptionsRegistry.formatError(exc));
+        return exc;
     }
 }

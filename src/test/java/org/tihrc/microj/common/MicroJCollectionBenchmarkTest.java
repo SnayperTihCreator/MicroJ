@@ -5,7 +5,7 @@ import org.tihrc.microj.core.Interpreter;
 import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.types.collections.PyDict;
 import org.tihrc.microj.types.collections.PyList;
-import org.tihrc.microj.types.collections.PyString;
+import org.tihrc.microj.types.primitives.PyString;
 import org.tihrc.microj.types.collections.PyTuple;
 import org.tihrc.microj.types.primitives.PyInt;
 

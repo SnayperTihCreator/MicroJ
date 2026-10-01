@@ -1,14 +1,14 @@
 package org.tihrc.microj.types.collections;
 
 import org.tihrc.microj.core.Protocols;
-import org.tihrc.microj.core.PyNotImplemented;
+import org.tihrc.microj.types.core.PyNotImplemented;
 import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.transforms.PyExport;
 import org.tihrc.microj.core.transforms.Transforms;
 import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.types.primitives.PyBool;
 import org.tihrc.microj.types.primitives.PyInt;
-import org.tihrc.microj.types.primitives.PyNone;
+import org.tihrc.microj.types.core.PyNone;
 
 import java.util.*;
 import java.util.stream.Stream;
@@ -147,12 +147,11 @@ public class PyList extends PyObject implements Protocols.PyContainer, Protocols
         return new PyList(result);
     }
 
-    @Override
-    public PyObject pyDanderSub(PyObject other) { return PyNotImplemented.INSTANCE; }
-    @Override
-    public PyObject pyDanderTrueDiv(PyObject other) { return PyNotImplemented.INSTANCE; }
-    @Override
-    public PyObject pyDanderNeg() { return PyNotImplemented.INSTANCE; }
+    @Override public PyObject pyDanderMod(PyObject other) { return PyNotImplemented.INSTANCE; }
+    @Override public PyObject pyDanderSub(PyObject other) { return PyNotImplemented.INSTANCE; }
+    @Override public PyObject pyDanderTrueDiv(PyObject other) { return PyNotImplemented.INSTANCE; }
+    @Override public PyObject pyDanderNeg() { return PyNotImplemented.INSTANCE; }
+    @Override public PyObject pyDanderFloorDiv(PyObject other) { return PyNotImplemented.INSTANCE; }
 
     @Override
     public String toString() {

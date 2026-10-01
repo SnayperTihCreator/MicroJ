@@ -3,15 +3,20 @@ package org.tihrc.microj.stl;
 import org.tihrc.microj.core.Interpreter;
 import org.tihrc.microj.core.Protocols;
 import org.tihrc.microj.core.PyObject;
+import org.tihrc.microj.core.exceptions.ExceptionsRegistry;
+import org.tihrc.microj.core.exceptions.PyUnwind;
 import org.tihrc.microj.core.transforms.Transforms;
 import org.tihrc.microj.core.exceptions.Exceptions;
-import org.tihrc.microj.types.*;
-import org.tihrc.microj.types.collections.PyRange;
-import org.tihrc.microj.types.collections.PyString;
+import org.tihrc.microj.types.callables.PyBuiltinFunction;
+import org.tihrc.microj.types.sequences.PyEnumerate;
+import org.tihrc.microj.types.sequences.PyRange;
+import org.tihrc.microj.types.primitives.PyString;
+import org.tihrc.microj.types.objects.PyModule;
 import org.tihrc.microj.types.primitives.PyBool;
 import org.tihrc.microj.types.primitives.PyInt;
-import org.tihrc.microj.types.primitives.PyNone;
+import org.tihrc.microj.types.core.PyNone;
 
+@SuppressWarnings("DataFlowIssue")
 public class PyModuleBuiltins extends PyModule {
     public PyModuleBuiltins(Interpreter interpreter) {
         super("builtins");
@@ -20,27 +25,10 @@ public class PyModuleBuiltins extends PyModule {
         registerAttribute("False", PyBool.FALSE);
         registerAttribute("None", PyNone.INSTANCE);
 
-        registerAttribute("str", new PyBuiltinFunction((PyBuiltinFunction.Call1) (ctx, arg) -> {
-            PyObject strMethod = arg.findAttribute("__str__");
-            if (strMethod instanceof PyFunction) {
-                PyObject res = ctx.callSync(strMethod, arg);
-                return res instanceof PyString ? res : new PyString(res.pyDanderStr());
-            }
-            PyObject reprMethod = arg.findAttribute("__repr__");
-            if (reprMethod instanceof PyFunction) {
-                PyObject res = ctx.callSync(reprMethod, arg);
-                return res instanceof PyString ? res : new PyString(res.pyDanderRepr());
-            }
-            return new PyString(arg.pyDanderStr());
-        }));
-        registerAttribute("repr", new PyBuiltinFunction((PyBuiltinFunction.Call1) (ctx, arg) -> {
-            PyObject reprMethod = arg.findAttribute("__repr__");
-            if (reprMethod != null) {
-                PyObject res = ctx.callSync(reprMethod, arg);
-                return res instanceof PyString ? res : new PyString(res.pyDanderRepr());
-            }
-            return new PyString(arg.pyDanderRepr());
-        }));
+        ExceptionsRegistry.registerBuiltins(this);
+
+        registerAttribute("str", new PyBuiltinFunction((PyBuiltinFunction.Call1) (ctx, arg) -> new PyString(arg.pyDanderStr())));
+        registerAttribute("repr", new PyBuiltinFunction((PyBuiltinFunction.Call1) (ctx, arg) -> new PyString(arg.pyDanderRepr())));
 
         registerAttribute("print", new PyBuiltinFunction((PyBuiltinFunction.CallVarArgs) (ctx, args) -> {
             StringBuilder sb = new StringBuilder();
@@ -66,6 +54,31 @@ public class PyModuleBuiltins extends PyModule {
             return new Exceptions.PyTypeError("%s has no len()".formatted(obj)).raise();
         }));
 
+        registerAttribute("sum", new PyBuiltinFunction((PyBuiltinFunction.CallVarArgs)(ctx, args) -> {
+            if (args.length == 0)
+                return new Exceptions.PyTypeError("sum expected at least 1 argument").raise();
+
+            PyObject iterable = args[0];
+            PyObject result = args.length > 1 ? args[1] : PyInt.from(0);
+
+            if (iterable instanceof Protocols.PyIterable iter) {
+                Protocols.PyIterator iterator = iter.pyDanderIter();
+                try {
+                    //noinspection InfiniteLoopStatement
+                    while (true) {
+                        PyObject item = iterator.pyDanderNext();
+                        if (result instanceof Protocols.PyNumber num) {
+                            result = num.pyDanderAdd(item);
+                        }
+                    }
+                } catch (PyUnwind e) {
+                    if (!ExceptionsRegistry.matches(e.payload, "StopIteration"))
+                        throw e;
+                }
+            }
+            return result;
+        }));
+
         registerAttribute("next", new PyBuiltinFunction((PyBuiltinFunction.Call1) (ctx, arg) -> {
             PyObject nextMethod = arg.findAttribute("__next__");
             if (nextMethod != null) {
@@ -74,7 +87,7 @@ public class PyModuleBuiltins extends PyModule {
             return new Exceptions.PyTypeError("%s has no next()".formatted(arg)).raise();
         }));
 
-        registerAttribute("type", new PyBuiltinFunction(((PyBuiltinFunction.Call1)(ctx, arg) -> new PyString(arg.getClass().toString()))));
+        registerAttribute("type", new PyBuiltinFunction(((PyBuiltinFunction.Call1)(ctx, arg) -> new PyString(arg.getClass().getSimpleName()))));
 
         registerAttribute("range", new PyBuiltinFunction((PyBuiltinFunction.CallVarArgs) (ctx, args) -> {
             Integer start = 0, stop = 0, step = 1;
@@ -88,6 +101,13 @@ public class PyModuleBuiltins extends PyModule {
                 step =  Transforms.fromPython(args[2], int.class);
             }
             return new PyRange(start, stop, step);
+        }));
+
+        registerAttribute("enumerate", new PyBuiltinFunction((PyBuiltinFunction.CallVarArgs) (ctx, args) -> {
+            if (args.length == 0)
+                return new Exceptions.PyTypeError("enumerate expected at least 1 argument").raise();
+            int start = args.length > 1 ? Transforms.fromPython(args[1], int.class) : 0;
+            return new PyEnumerate(args[0], start);
         }));
 
         registerAttribute("abs", new PyBuiltinFunction(((PyBuiltinFunction.Call1)(ctx, arg) -> {

@@ -1,7 +1,6 @@
-package org.tihrc.microj.types.collections;
+package org.tihrc.microj.types.sequences;
 
 import org.tihrc.microj.core.Protocols;
-import org.tihrc.microj.core.PyNotImplemented;
 import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.core.transforms.PyExport;

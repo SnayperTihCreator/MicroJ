@@ -4,11 +4,11 @@ import org.tihrc.microj.compiler.Instruction;
 import org.tihrc.microj.core.Protocols;
 import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.RuntimeExecuter;
-import org.tihrc.microj.core.exceptions.Exceptions;
-import org.tihrc.microj.core.exceptions.PyBaseException;
-import org.tihrc.microj.core.exceptions.PyUnwind;
-import org.tihrc.microj.types.PyClass;
-import org.tihrc.microj.types.primitives.PyNone;
+import org.tihrc.microj.core.exceptions.*;
+import org.tihrc.microj.types.objects.PyClass;
+import org.tihrc.microj.types.objects.PyInstance;
+import org.tihrc.microj.types.core.PyNone;
+import org.tihrc.microj.units.Constants;
 import org.tihrc.microj.units.Frame;
 
 public class ErrorInstructions {
@@ -30,14 +30,7 @@ public class ErrorInstructions {
 
     public record CheckException(String typeName, int exceptBodyTarget) implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter vm) {
-            PyBaseException exc = (PyBaseException) f.stack.peek();
-
-            boolean matches = (typeName == null ||
-                    typeName.equals(exc.getErrorType()) ||
-                    typeName.equals("Exception") ||
-                    typeName.equals("BaseException"));
-
-            if (matches) {
+            if (ExceptionsRegistry.matches(f.stack.peek(), typeName)) {
                 f.pc = exceptBodyTarget;
                 return false;
             }
@@ -47,23 +40,28 @@ public class ErrorInstructions {
 
     public record ReRaise() implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter vm) {
-            PyBaseException exc = (PyBaseException) f.stack.pop();
-            throw new PyUnwind(exc);
+            if (f.stack.isEmpty())
+                return new Exceptions.PyRuntimeError("No active exception to re-raise").raise();
+            throw new PyUnwind(f.stack.pop());
         }
     }
 
     public record RaiseException() implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter vm) {
             PyObject exc = f.stack.pop();
-            if (exc instanceof PyClass) {
-                exc = ((PyClass) exc).pyDanderCallFast(vm, new PyObject[0], new String[0], new PyObject[0]);
+            if (exc instanceof PyClass cls) {
+                if (!ExceptionsRegistry.isExceptionClass(cls))
+                    return new Exceptions.PyTypeError("exceptions must derive from BaseException").raise();
+                exc = cls.pyDanderCallFast(vm, Constants.NO_ARGS, Constants.NO_KW_NAMES, Constants.NO_KW_VALUES);
             }
-            if (exc instanceof PyBaseException) {
-                ((PyBaseException) exc).raise();
-            } else {
-                return new Exceptions.PyTypeError("exceptions must derive from BaseException").raise();
+            if (exc instanceof PyInstance inst) {
+                if (!ExceptionsRegistry.isExceptionClass(inst.pyClass))
+                    return new Exceptions.PyTypeError("exceptions must derive from BaseException").raise();
+                throw new PyUnwind(inst);
             }
-            return true;
+            if (exc instanceof PyBaseException pe)
+                return pe.raise();
+            return new Exceptions.PyTypeError("exceptions must derive from BaseException").raise();
         }
     }
 

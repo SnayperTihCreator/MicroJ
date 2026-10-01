@@ -10,7 +10,7 @@ public interface AsmTypes {
     String PY_TUPLE         = "org/tihrc/microj/types/collections/PyTuple";
     String PY_DICT          = "org/tihrc/microj/types/collections/PyDict";
     String PY_BOOL          = "org/tihrc/microj/types/primitives/PyBool";
-    String PY_MODULE        = "org/tihrc/microj/types/PyModule";
+    String PY_MODULE        = "org/tihrc/microj/types/objects/PyModule";
     String PY_UNWIND        = "org/tihrc/microj/core/exceptions/PyUnwind";
     String FAST_MAP         = "org/tihrc/microj/units/FastMap";
     String RUN_EXECUTER     = "org/tihrc/microj/core/RuntimeExecuter";
@@ -29,7 +29,6 @@ public interface AsmTypes {
     String OBJECT           = "java/lang/Object";
     String STRING           = "java/lang/String";
     String MAP              = "java/util/Map";
-    String ILLEGAL_ARGUMENT = "java/lang/IllegalArgumentException";
     String METHOD_HANDLE    = "java/lang/invoke/MethodHandle";
 
     String PYOBJECT_DESC = "L%s;".formatted(PY_OBJECT);

@@ -3,8 +3,8 @@ package org.tihrc.microj.core;
 import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.core.transforms.PyExport;
 import org.tihrc.microj.core.transforms.PyTypeExporter;
-import org.tihrc.microj.types.PyBoundMethod;
-import org.tihrc.microj.types.collections.PyString;
+import org.tihrc.microj.types.callables.PyBoundMethod;
+import org.tihrc.microj.types.primitives.PyString;
 import org.tihrc.microj.types.primitives.PyBool;
 import org.tihrc.microj.units.FastMap;
 

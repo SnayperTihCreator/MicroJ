@@ -1,15 +1,25 @@
 package org.tihrc.microj.core.exceptions;
 
-public class PyUnwind extends Error {
-    public final PyBaseException exception;
+import org.tihrc.microj.core.PyObject;
 
-    public PyUnwind(PyBaseException exception) {
-        super(exception.toString());
-        this.exception = exception;
+public class PyUnwind extends Error {
+    public final PyObject payload;
+    public RaisedContext ctx;
+
+    private static final boolean CAPTURE_STACK = Boolean.getBoolean("microj.debug.unwindStack");
+
+    public PyUnwind(PyObject payload) {
+        super((String) null);
+        this.payload = payload;
     }
 
     @Override
-    public synchronized Throwable fillInStackTrace() {
-        return this;
+    public String getMessage() {
+        return ExceptionsRegistry.formatError(payload);
+    }
+
+    @Override
+    public Throwable fillInStackTrace() {
+        return CAPTURE_STACK ? super.fillInStackTrace() : this;
     }
 }

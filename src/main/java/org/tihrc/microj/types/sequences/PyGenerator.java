@@ -1,23 +1,23 @@
-package org.tihrc.microj.types.collections;
+package org.tihrc.microj.types.sequences;
 
 import org.tihrc.microj.core.Protocols;
 import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.RuntimeExecuter;
 import org.tihrc.microj.core.exceptions.Exceptions;
+import org.tihrc.microj.core.exceptions.ExceptionsRegistry;
 import org.tihrc.microj.core.exceptions.PyUnwind;
 import org.tihrc.microj.core.transforms.PyExport;
+import org.tihrc.microj.types.core.PyContext;
 import org.tihrc.microj.units.Frame;
 import org.tihrc.microj.units.FrameTask;
 
 public class PyGenerator extends PyObject implements Protocols.PyIterator, Protocols.PyIterable {
     public final String name;
     private Frame frame;
-    private final RuntimeExecuter ctx;
 
-    public PyGenerator(String name, Frame frame, RuntimeExecuter ctx) {
+    public PyGenerator(String name, Frame frame) {
         this.name = name;
         this.frame = frame;
-        this.ctx = ctx;
     }
 
     @Override
@@ -31,6 +31,7 @@ public class PyGenerator extends PyObject implements Protocols.PyIterator, Proto
     public PyObject pyDanderNext() {
         if (frame == null)
             return new Exceptions.PyStopIteration().raise();
+        RuntimeExecuter ctx = PyContext.current();
 
         FrameTask task = frame.createTask();
         ctx.pushTask(task);
@@ -38,7 +39,7 @@ public class PyGenerator extends PyObject implements Protocols.PyIterator, Proto
         try {
             ctx.runUntil(ctx.getSizeTasks() - 1);
         } catch (PyUnwind e) {
-            if (e.exception instanceof Exceptions.PyStopIteration) {
+            if (ExceptionsRegistry.matches(e.payload, "StopIteration")){
                 frame = null;
                 return new Exceptions.PyStopIteration().raise();
             }

@@ -1,7 +1,7 @@
 package org.tihrc.microj.core;
 
 import org.tihrc.microj.stl.*;
-import org.tihrc.microj.types.PyModule;
+import org.tihrc.microj.types.objects.PyModule;
 import org.tihrc.microj.units.FastMap;
 
 import java.util.Map;
@@ -12,9 +12,11 @@ public class StandardLibrary {
 
     public StandardLibrary(Interpreter interpreter) {
         registerModule(new PyModuleBuiltins(interpreter));
-        registerModule(new PyModuleMath(interpreter));
-        registerModule(new PyModuleTime(interpreter));
+        registerModule(new PyModuleMicroJ(interpreter));
         registerModule(new PyModuleSys(interpreter));
+        registerModule(new PyModuleTime(interpreter));
+
+        registerModule(new PyModuleMath(interpreter));
         registerModule(new PyModuleDis(interpreter));
     }
 

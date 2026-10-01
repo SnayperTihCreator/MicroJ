@@ -5,7 +5,11 @@ import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.RuntimeExecuter;
 import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.core.transforms.PyMethodProxy;
-import org.tihrc.microj.types.*;
+import org.tihrc.microj.types.callables.PyBoundMethod;
+import org.tihrc.microj.types.callables.PyFunction;
+import org.tihrc.microj.types.objects.PyClass;
+import org.tihrc.microj.types.objects.PyInstance;
+import org.tihrc.microj.types.objects.PyModule;
 import org.tihrc.microj.units.Frame;
 
 public class AttributeInstructions {

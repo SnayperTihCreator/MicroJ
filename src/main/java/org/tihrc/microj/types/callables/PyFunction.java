@@ -1,14 +1,14 @@
-package org.tihrc.microj.types;
+package org.tihrc.microj.types.callables;
 
 import org.tihrc.microj.backend.jvm.JvmCompiler;
 import org.tihrc.microj.compiler.Instruction;
-import org.tihrc.microj.compiler.instruction.CallInstructions;
 import org.tihrc.microj.core.Protocols;
 import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.RuntimeExecuter;
 import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.core.transforms.PyExport;
-import org.tihrc.microj.types.primitives.PyNone;
+import org.tihrc.microj.types.core.PyNone;
+import org.tihrc.microj.units.Constants;
 import org.tihrc.microj.units.Frame;
 import org.tihrc.microj.units.FrameTask;
 
@@ -42,21 +42,14 @@ public class PyFunction extends PyObject implements Protocols.PyCallable {
         this.constants = constants;
     }
 
-    public PyFunction(String name, List<Instruction> body, List<String> params,  Map<String, PyObject> closure, PyObject[] constants) {
-        this(name, body, params, null, null, closure, PyNone.INSTANCE, constants);
-    }
-
     private Frame bindFrame(RuntimeExecuter ctx, PyObject[] args, String[] kwNames, PyObject[] kwValues) {
         Frame frame = ctx.obtainFrame(body, constants, closure);
 
-        if (kwNames != null && kwArg == null) {
-            for (String kw : kwNames) {
-                if (!paramNames.contains(kw))
-                    new Exceptions.PyTypeError(
-                            name + "() got an unexpected keyword argument '" + kw + "'").raise();
-            }
-        }
-        if (args == null) args = CallInstructions.NO_ARGS;
+        if (kwNames != null && kwArg == null)
+            for (String kw : kwNames) if (!paramNames.contains(kw))
+                    new Exceptions.PyTypeError(name + "() got an unexpected keyword argument '" + kw + "'").raise();
+
+        if (args == null) args = Constants.NO_ARGS;
 
         PyObject[] slots = new PyObject[params.size() + (starArg != null ? 1 : 0) + (kwArg != null ? 1 : 0)];
         JvmCompiler.bindArgs(ctx, slots, defaults, args, kwNames, kwValues,
@@ -70,14 +63,14 @@ public class PyFunction extends PyObject implements Protocols.PyCallable {
     }
 
     private static String[] kwNamesOf(Map<String, PyObject> kwargs) {
-        if (kwargs == null || kwargs.isEmpty()) return CallInstructions.NO_KW_NAMES;
+        if (kwargs == null || kwargs.isEmpty()) return Constants.NO_KW_NAMES;
         String[] names = new String[kwargs.size()];
         int i = 0;
         for (var e : kwargs.entrySet()) names[i++] = e.getKey();
         return names;
     }
     private static PyObject[] kwValuesOf(Map<String, PyObject> kwargs) {
-        if (kwargs == null || kwargs.isEmpty()) return CallInstructions.NO_KW_VALUES;
+        if (kwargs == null || kwargs.isEmpty()) return Constants.NO_KW_VALUES;
         PyObject[] vals = new PyObject[kwargs.size()];
         int i = 0;
         for (var e : kwargs.entrySet()) vals[i++] = e.getValue();
@@ -120,7 +113,7 @@ public class PyFunction extends PyObject implements Protocols.PyCallable {
 
     @Override
     public PyObject pyDanderCallFast(RuntimeExecuter ctx) {
-        return ctx.runFrameSync(bindFrame(ctx, CallInstructions.NO_ARGS, CallInstructions.NO_KW_NAMES, CallInstructions.NO_KW_VALUES));
+        return ctx.runFrameSync(bindFrame(ctx, Constants.NO_ARGS, Constants.NO_KW_NAMES, Constants.NO_KW_VALUES));
     }
 
     @Override

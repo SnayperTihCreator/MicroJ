@@ -7,6 +7,7 @@ import org.tihrc.microj.core.transforms.Transforms;
 import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.types.primitives.PyBool;
 import org.tihrc.microj.types.primitives.PyInt;
+import org.tihrc.microj.types.primitives.PyString;
 
 import java.util.Arrays;
 
@@ -115,7 +116,7 @@ public class PyTuple extends PyObject implements Protocols.PyContainer, Protocol
             if (i > 0) sb.append(", ");
             sb.append(items[i].pyDanderRepr());
         }
-        if (items.length == 1) sb.append(","); // Кортеж из одного элемента: (1,)
+        if (items.length == 1) sb.append(",");
         return sb.append(")").toString();
     }
 

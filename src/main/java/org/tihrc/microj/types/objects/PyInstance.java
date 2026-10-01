@@ -1,13 +1,17 @@
-package org.tihrc.microj.types;
+package org.tihrc.microj.types.objects;
 
 import org.tihrc.microj.core.Capability;
 import org.tihrc.microj.core.Protocols;
 import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.RuntimeExecuter;
 import org.tihrc.microj.core.transforms.PyExport;
-import org.tihrc.microj.types.collections.PyString;
+import org.tihrc.microj.core.transforms.Transforms;
+import org.tihrc.microj.types.callables.PyBoundMethod;
+import org.tihrc.microj.types.primitives.PyString;
 import org.tihrc.microj.types.core.PyContext;
+import org.tihrc.microj.units.Constants;
 import org.tihrc.microj.units.FastMap;
+import org.tihrc.microj.units.Utils;
 
 public class PyInstance extends PyObject {
     public final PyClass pyClass;
@@ -38,20 +42,42 @@ public class PyInstance extends PyObject {
         attrs.put(name, value);
     }
 
+    private PyObject userLookup(String name) {
+        PyObject m = attrs.get(name);
+        return m != null ? m : pyClass.findAttribute(name);
+    }
+
     @Override
-    @PyExport(name = "__format__")
     public PyObject pyDanderFormat(String spec) {
-        PyObject method = findAttribute("__format__");
+        PyObject method = userLookup("__format__");
         if (method instanceof Protocols.PyCallable callable) {
             RuntimeExecuter ctx = PyContext.current();
-            return callable.pyDanderCallFast(ctx, new PyObject[]{new PyString(spec)}, new String[0], new PyObject[0]);
+            return callable.pyDanderCallFast(ctx, new PyObject[]{ this, new PyString(spec) }, Constants.NO_KW_NAMES, Constants.NO_KW_VALUES);
         }
         return super.pyDanderFormat(spec);
     }
 
     @Override
     public String pyDanderRepr() {
+        PyObject method = userLookup("__repr__");
+        if (method instanceof Protocols.PyCallable callable) {
+            RuntimeExecuter ctx = PyContext.current();
+            PyObject res = callable.pyDanderCallFast(ctx, new PyObject[]{ this }, Constants.NO_KW_NAMES, Constants.NO_KW_VALUES);
+            if (res instanceof PyString s) return s.value;
+        }
         return "<%s object>".formatted(pyClass.name);
+    }
+
+    @Override
+    public String pyDanderStr() {
+        PyObject method = userLookup("__str__");
+        if (method instanceof Protocols.PyCallable callable) {
+            RuntimeExecuter ctx = PyContext.current();
+            PyObject res = callable.pyDanderCallFast(ctx,
+                    new PyObject[]{ this }, Constants.NO_KW_NAMES, Constants.NO_KW_VALUES);
+            if (res instanceof PyString s) return s.value;
+        }
+        return pyDanderRepr();
     }
 
     @Override
