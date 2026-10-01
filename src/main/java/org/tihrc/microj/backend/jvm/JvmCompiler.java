@@ -59,21 +59,11 @@ public class JvmCompiler implements Opcodes, AsmTypes {
         init.visitMaxs(2, 2);
         init.visitEnd();
 
-        // 1. Анализируем и разбиваем скрипт на блоки
         List<JitBlock> blocks = splitIntoBlocks(code);
 
-        // 2. Определяем переменные верхнего уровня
         Map<String, Integer> localSlots = new HashMap<>();
         int localsArraySize = 0;
-        for (Instruction instr : code) {
-            if (instr instanceof StackInstructions.StoreName(String n)) {
-                if (!localSlots.containsKey(n)) {
-                    localSlots.put(n, localsArraySize++);
-                }
-            }
-        }
 
-        // Спорные слоты для диспетчера
         int localsSlot = 2;
         int closureSlot = 3;
         int lastResultSlot = 4;
@@ -81,7 +71,6 @@ public class JvmCompiler implements Opcodes, AsmTypes {
 
         String blockMethodDesc = "(L%s;[L%s;[L%s;L%s;)I".formatted(RUN_EXECUTER, PY_OBJECT, PY_OBJECT, PY_OBJECT);
 
-        // 3. Компилируем методы-блоки
         for (JitBlock block : blocks) {
             String blockMethodName = "block$" + block.id();
             MethodVisitor bmv = cw.visitMethod(ACC_PRIVATE, blockMethodName, blockMethodDesc, null, null);
@@ -426,12 +415,12 @@ public class JvmCompiler implements Opcodes, AsmTypes {
                 case CallInstructions.MakeFunction(String name, List<Instruction> body, List<String> params,
                                                    String starArg, String kwArg, List<String> freeVars, List<int[]> funcLines) ->
                         emitMakeFunction(cw, internalClassName, body, mv, params, name, starArg, kwArg, freeVars,
-                                localSlots, outerSlots, nonlocals, localsSlot, closureSlot, tempSlot, funcLines);
+                                localSlots, outerSlots, nonlocals, localsSlot, closureSlot, tempSlot, funcLines, cellVars);
                 case CallInstructions.CallFunction(int posCount, String[] kwNames) ->
                         emitCallFunction(mv, posCount, kwNames, tempSlot);
                 case CallInstructions.MakeGenerator(String name, int codeIndex, List<String> params, String starArg, String kwArg, List<String> freeVars) ->
                         emitMakeGenerator(mv, internalClassName, name, codeIndex, localsSlot, closureSlot, tempSlot,
-                                params, starArg, kwArg, freeVars, localSlots, outerSlots);
+                                params, starArg, kwArg, freeVars, localSlots, outerSlots, cellVars);
 
                 case AttributeInstructions.GetAttr(String name) -> emitGetAttr(mv, name);
                 case AttributeInstructions.SetAttr(String name) -> emitSetAttr(mv, name, tempSlot);
@@ -968,11 +957,11 @@ public class JvmCompiler implements Opcodes, AsmTypes {
     private void emitMakeFunction(ClassWriter cw, String internalClassName, List<Instruction> body, MethodVisitor mv,
                                   List<String> params, String name, String starArg, String kwArg, List<String> freeVars,
                                   Map<String, Integer> localSlots, Map<String, Integer> outerSlots,
-                                  Set<String> nonlocals, int localsSlot, int closureSlot, int tempSlot, List<int[]> funcLines) {
+                                  Set<String> nonlocals, int localsSlot, int closureSlot, int tempSlot, List<int[]> funcLines, Set<String> cellVars) {
         String funcMethodName = "func$" + FUNC_COUNTER.incrementAndGet();
         List<String> included = new ArrayList<>();
         for (String f : freeVars) {
-            if (localSlots.containsKey(f) || outerSlots.containsKey(f)) included.add(f);
+            if (cellVars.contains(f) || outerSlots.containsKey(f)) included.add(f);
         }
 
         compileFunctionBody(cw, internalClassName, funcMethodName, body, params, starArg, kwArg, included,
@@ -1078,7 +1067,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
     private static void emitMakeGenerator(MethodVisitor mv, String internalClassName, String name, int codeIndex,
                                           int localsSlot, int closureSlot, int tempSlot, List<String> params,
                                           String starArg, String kwArg, List<String> freeVars,
-                                          Map<String, Integer> localSlots, Map<String, Integer> outerSlots) {
+                                          Map<String, Integer> localSlots, Map<String, Integer> outerSlots, Set<String> cellVars) {
         mv.visitVarInsn(ASTORE, tempSlot + 3);
 
         mv.visitVarInsn(ALOAD, 1);
@@ -1110,7 +1099,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
 
         List<String> included = new ArrayList<>();
         for (String f : freeVars) {
-            if (localSlots.containsKey(f) || outerSlots.containsKey(f)) included.add(f);
+            if (cellVars.contains(f) || outerSlots.containsKey(f)) included.add(f);
         }
 
         pushInt(mv, included.size());
@@ -1244,7 +1233,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
         Map<String, PyObject> closureMap = new HashMap<>();
         for (int i = 0; i < freeVars.length; i++)
             closureMap.put(freeVars[i], closureArray[i]);
-        return new PyGeneratorFunc(name, code.body, List.of(params), starArg, kwArg, closureMap, defaults, constants);
+        return new PyGeneratorFunc(name, code.body, List.of(params), starArg, kwArg, closureMap, defaults, constants, code.lineTable);
     }
 
     @SuppressWarnings("unused")

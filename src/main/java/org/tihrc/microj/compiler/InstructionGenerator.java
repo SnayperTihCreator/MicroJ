@@ -436,7 +436,7 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
         else bytecode.add(new StackInstructions.LoadConst(INDEX_NONE));
         List<String> freeVars = freeVarsOf(funcBody, params, starArg, kwArg);
         if (isGenerator) {
-            int codeIdx = addConstant(new PyCode(funcBody));
+            int codeIdx = addConstant(new PyCode(funcBody, LineTables.build(funcBody.size(), funcMarkers)));
             bytecode.add(new CallInstructions.MakeGenerator(ctx.NAME().getText(), codeIdx, params, starArg, kwArg, freeVars));
         } else {
             bytecode.add(new CallInstructions.MakeFunction(ctx.NAME().getText(), funcBody, params,

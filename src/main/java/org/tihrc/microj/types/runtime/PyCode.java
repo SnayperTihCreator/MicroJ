@@ -7,8 +7,10 @@ import java.util.List;
 
 public class PyCode extends PyObject {
     public final List<Instruction> body;
-    public PyCode(List<Instruction> body) {
+    public final int[] lineTable;
+    public PyCode(List<Instruction> body, int[] lineTable) {
         this.body = body;
+        this.lineTable = lineTable;
     }
 
     @Override

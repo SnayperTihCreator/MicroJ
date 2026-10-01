@@ -4,6 +4,7 @@ import org.tihrc.microj.compiler.Instruction;
 import org.tihrc.microj.core.Protocols;
 import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.RuntimeExecuter;
+import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.core.transforms.PyExport;
 import org.tihrc.microj.types.collections.PyDict;
 import org.tihrc.microj.types.primitives.PyString;
@@ -24,10 +25,11 @@ public class PyGeneratorFunc extends PyObject implements Protocols.PyCallable {
     public final Map<String, PyObject> closure;
     public final PyObject defaults;
     public final PyObject[] constants;
+    public final int[] lineTable;
 
     public PyGeneratorFunc(String name, List<Instruction> body, List<String> params,
                            String starArg, String kwArg, Map<String, PyObject> closure,
-                           PyObject defaults, PyObject[] constants) {
+                           PyObject defaults, PyObject[] constants, int[] lineTable) {
         this.name = name;
         this.body = body;
         this.params = params;
@@ -36,6 +38,7 @@ public class PyGeneratorFunc extends PyObject implements Protocols.PyCallable {
         this.closure = closure;
         this.defaults = defaults;
         this.constants = constants;
+        this.lineTable = lineTable;
     }
 
     @Override
@@ -56,6 +59,8 @@ public class PyGeneratorFunc extends PyObject implements Protocols.PyCallable {
         if (kwNames != null && kwNames.length > 0) {
             for (int i = 0; i < kwNames.length; i++) {
                 String name = kwNames[i];
+                if (!params.contains(name) && kwArg == null)
+                    return new Exceptions.PyTypeError(name + "() got an unexpected keyword argument '" + name + "'").raise();
                 if (params.contains(name)) locals.put(name, kwValues[i]);
             }
         }
@@ -94,6 +99,8 @@ public class PyGeneratorFunc extends PyObject implements Protocols.PyCallable {
 
         Frame genFrame = vm.obtainFrame(body, constants, closure);
         genFrame.locals = locals;
+        genFrame.functionName = name;
+        genFrame.lineTable = lineTable;
         return new PyGenerator(name, genFrame);
     }
 

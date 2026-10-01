@@ -158,6 +158,7 @@ public class RuntimeExecuter {
                     task.onFailure().accept(e.payload);
                     continue;
                 }
+                popTask();
                 throw e;
             }
         }

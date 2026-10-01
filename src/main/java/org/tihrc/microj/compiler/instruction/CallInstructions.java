@@ -32,11 +32,11 @@ public class CallInstructions {
                     closure.put(free, cell);
                 } else if (f.closure != null && f.closure.get(free) instanceof PyCell outer)
                     closure.put(free, outer);
-                else {
-                    PyCell cell = new PyCell(null);
-                    f.locals.put(free, cell);
-                    closure.put(free, cell);
-                }
+//                else {
+//                    PyCell cell = new PyCell(null);
+//                    f.locals.put(free, cell);
+//                    closure.put(free, cell);
+//                }
             }
         }
         return defaults;
@@ -59,7 +59,7 @@ public class CallInstructions {
             Map<String, PyObject> closure = new FastMap<>();
             PyObject defaults = preBindFreeVars(f, vm, freeVars, closure);
             PyCode code = (PyCode) f.constants[codeIndex];
-            f.stack.push(new PyGeneratorFunc(name, code.body, params, starArg, kwArg, closure, defaults, f.constants));
+            f.stack.push(new PyGeneratorFunc(name, code.body, params, starArg, kwArg, closure, defaults, f.constants, code.lineTable));
             return true;
         }
     }
