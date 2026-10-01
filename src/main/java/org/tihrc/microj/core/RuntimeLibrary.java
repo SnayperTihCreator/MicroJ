@@ -1,5 +1,7 @@
 package org.tihrc.microj.core;
 
+import org.tihrc.microj.core.exceptions.Exceptions;
+import org.tihrc.microj.core.exceptions.PyUnwind;
 import org.tihrc.microj.core.loaders.ResourceScriptLoader;
 import org.tihrc.microj.core.loaders.ScriptLoader;
 import org.tihrc.microj.types.objects.PyModule;
@@ -57,15 +59,14 @@ public class RuntimeLibrary {
         for (ScriptLoader loader : loaders) {
             try {
                 PyModule module = loader.loadModule(moduleName, ctx);
-                if (module != null) {
-                    modules.put(key, module);
-                    return module;
-                }
+                if (module != null) return module;
+            } catch (PyUnwind e) {
+                throw e;
             } catch (Exception e) {
-                throw new RuntimeException("ImportError: " + e.getMessage());
+                continue;
             }
         }
-        return null;
+        return new Exceptions.PyModuleNotFoundError("No module named '" + moduleName + "'").raise();
     }
 
     public void registerScript(PyModule module) {

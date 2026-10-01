@@ -14,7 +14,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-public class ExceptionsRegistry {
+public final class ExceptionsRegistry {
     private ExceptionsRegistry() {}
 
     public static final Map<String, PyClassException> ALL = new FastMap<>();
@@ -22,8 +22,8 @@ public class ExceptionsRegistry {
 
     public static final PyClassException BASE_EXCEPTION  = new PyClassException("BaseException", PyBaseException.class);
     public static final PyClassException SYSTEM_EXIT     = new PyClassException("SystemExit", BaseExceptions.PySystemExit.class, BASE_EXCEPTION);
-    public static final PyClassException KEYBOARD_INTERRUPT = new PyClassException("KeyboardInterrupt", null, BASE_EXCEPTION);
-    public static final PyClassException GENERATOR_EXIT  = new PyClassException("GeneratorExit", null, BASE_EXCEPTION);
+    public static final PyClassException KEYBOARD_INTERRUPT = new PyClassException("KeyboardInterrupt", BaseExceptions.PyKeyboardInterrupt.class, BASE_EXCEPTION);
+    public static final PyClassException GENERATOR_EXIT  = new PyClassException("GeneratorExit", BaseExceptions.PyGeneratorExit.class, BASE_EXCEPTION);
 
     public static final PyClassException EXCEPTION       = new PyClassException("Exception", Exceptions.PyException.class, BASE_EXCEPTION);
     public static final PyClassException STOP_ITERATION  = new PyClassException("StopIteration", Exceptions.PyStopIteration.class, EXCEPTION);

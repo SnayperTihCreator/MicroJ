@@ -20,6 +20,9 @@ public class RuntimeExecuter {
     private final Map<String, PyObject> globals = new FastMap<>();
     private final Deque<FrameTask> frameTasks = new ArrayDeque<>();
     private final Deque<Frame> framePool = new ArrayDeque<>();
+    public String currentFile = "<script>";
+    public String currentFunction = "<module>";
+    public int currentLine = -1;
 
     public RuntimeExecuter(Interpreter interpreter){
         this.interpreter = interpreter;
@@ -34,6 +37,9 @@ public class RuntimeExecuter {
             new Exceptions.PyRecursionError("maximum recursion depth exceeded").raise();
         frameTasks.push(task);
     }
+    public void setCurrentFile(String f) { this.currentFile = f; }
+    public void setCurrentFunction(String n) { this.currentFunction = n; }
+    public void setCurrentLine(int l) { this.currentLine = l; }
     public FrameTask popTask() { return frameTasks.pop(); }
     public FrameTask getCurrentTask() { return frameTasks.peek(); }
     public int getSizeTasks() { return frameTasks.size(); }
@@ -53,15 +59,10 @@ public class RuntimeExecuter {
     }
 
     public PyObject run(InstructionGenerator.CompiledScript script) {
-        pushTask(Frame.fromGlobals(script.code(), globals, script.constants()).createTask());
+        pushTask(Frame.fromGlobals(script.code(), globals, script.constants(), script.lineTable()).createTask());
         try { executeTasks(0); }
         catch (PyUnwind e) { return raised(e); }
         return PyNone.INSTANCE;
-    }
-
-    @SuppressWarnings("UnusedReturnValue")
-    public PyObject run(List<Instruction> code) {
-        return run(new InstructionGenerator.CompiledScript(code, new PyObject[0]));
     }
 
     public PyObject callSync(PyObject func, PyObject... args) throws PyUnwind {
@@ -114,7 +115,7 @@ public class RuntimeExecuter {
     }
 
     public long runInstructions(InstructionGenerator.CompiledScript script) throws PyUnwind {
-        pushTask(new FrameTask(Frame.fromGlobals(script.code(), globals, script.constants())));
+        pushTask(new FrameTask(Frame.fromGlobals(script.code(), globals, script.constants(), script.lineTable())));
         return executeTasks(0);
     }
 
@@ -144,6 +145,8 @@ public class RuntimeExecuter {
                     frame.pc++;
                 }
             } catch (PyUnwind e) {
+                if (e.ctx == null)
+                    e.ctx = new RaisedContext(currentFile, frame.functionName, frame.currentLine());
                 if (frame.tryHandlers != null && !frame.tryHandlers.isEmpty()) {
                     int[] handler = frame.tryHandlers.pop();
                     frame.stack.clear();
@@ -176,7 +179,17 @@ public class RuntimeExecuter {
         }
 
         System.err.println("Traceback (most recent call last):");
-        if (e.ctx != null) System.err.println(e.ctx);
+        boolean any = false;
+        for (var it = frameTasks.descendingIterator(); it.hasNext(); ) {
+            Frame f = it.next().frame();
+            int line = f.currentLine();
+            if (line > 0 || "<module>".equals(f.functionName)) {
+                System.err.println(new RaisedContext(currentFile, f.functionName, line));
+                any = true;
+            }
+        }
+        if (!any)
+            System.err.println(new RaisedContext(currentFile, currentFunction, currentLine));
         System.err.println(ExceptionsRegistry.formatError(exc));
         return exc;
     }

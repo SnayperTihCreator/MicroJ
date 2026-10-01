@@ -27,10 +27,11 @@ public class PyFunction extends PyObject implements Protocols.PyCallable {
     public final Map<String, PyObject> closure;
     public final PyObject defaults;
     public final PyObject[] constants;
+    public final int[] lineTable;
 
     public PyFunction(String name, List<Instruction> body, List<String> params,
-                      String starArg, String kwArg,
-                      Map<String, PyObject> closure, PyObject defaults, PyObject[] constants) {
+                      String starArg, String kwArg, Map<String, PyObject> closure,
+                      PyObject defaults, PyObject[] constants, int[] lineTable) {
         this.name = name;
         this.body = body;
         this.params = params;
@@ -40,10 +41,13 @@ public class PyFunction extends PyObject implements Protocols.PyCallable {
         this.closure = closure;
         this.defaults = defaults;
         this.constants = constants;
+        this.lineTable = lineTable;
     }
 
     private Frame bindFrame(RuntimeExecuter ctx, PyObject[] args, String[] kwNames, PyObject[] kwValues) {
         Frame frame = ctx.obtainFrame(body, constants, closure);
+        frame.functionName = name;
+        frame.lineTable = lineTable;
 
         if (kwNames != null && kwArg == null)
             for (String kw : kwNames) if (!paramNames.contains(kw))
@@ -78,7 +82,10 @@ public class PyFunction extends PyObject implements Protocols.PyCallable {
     }
 
     public Frame createClosure() {
-        return Frame.createClosure(body, closure, constants);
+        Frame frame = Frame.createClosure(body, closure, constants);
+        frame.functionName = name;
+        frame.lineTable = lineTable;
+        return frame;
     }
 
     private Frame prepareFrame(RuntimeExecuter ctx, PyObject[] args, Map<String, PyObject> kwargs) {

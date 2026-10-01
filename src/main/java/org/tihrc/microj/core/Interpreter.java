@@ -27,6 +27,9 @@ public class Interpreter {
     private final RuntimeLibrary lib;
     public final InterpreterState state;
     private final Map<InstructionGenerator.CompiledScript, JvmScript> jitCache = new WeakHashMap<>();
+    private static final boolean JIT_DISABLE = Boolean.getBoolean("microj.nojit");
+
+    public record RunResult(PyObject result, RuntimeExecuter ctx) {}
 
     public Interpreter() {
         stl = new StandardLibrary(this);
@@ -38,7 +41,7 @@ public class Interpreter {
         return lib;
     }
 
-    public InstructionGenerator.CompiledScript compile(InputStream scriptStream) {
+    public InstructionGenerator.CompiledScript compile(InputStream scriptStream, String filename) {
         if (scriptStream == null) {
             throw new IllegalArgumentException("Поток скрипта пуст (null)");
         }
@@ -56,7 +59,7 @@ public class Interpreter {
 
             var tree = parser.file();
 
-            InstructionGenerator generator = new InstructionGenerator();
+            InstructionGenerator generator = new InstructionGenerator(filename);
             return generator.compile(tree);
         } catch (IOException e) {
             System.out.println("Пустой поток");
@@ -64,12 +67,21 @@ public class Interpreter {
         return null;
     }
 
-    public PyObject run(InstructionGenerator.CompiledScript script) {
+    public InstructionGenerator.CompiledScript compile(InputStream scriptStream) {
+        return compile(scriptStream, "<input>");
+    }
+
+    public RunResult runWithCtx(InstructionGenerator.CompiledScript script) {
         if (script == null) throw new IllegalArgumentException("CompiledScript == null");
-
         RuntimeExecuter ctx = new RuntimeExecuter(this);
+        ctx.setCurrentFile(script.filename());
+        PyObject result = PyContext.with(ctx, () -> {
 
-        return PyContext.with(ctx, () -> {
+            if (JIT_DISABLE){
+                state.recordBytecode();
+                return ctx.run(script);
+            }
+
             JvmScript jitScript;
             try {
                 jitScript = jitCache.get(script);
@@ -95,12 +107,17 @@ public class Interpreter {
                 return new Exceptions.PySystemError("internal error (JIT): " + t).raise();
             }
         });
+        return new RunResult(result, ctx);
+    }
+
+    public PyObject run(InstructionGenerator.CompiledScript script) {
+        return runWithCtx(script).result();
     }
 
     @SuppressWarnings("UnusedReturnValue")
-    public PyObject run(InputStream scriptStream) {
+    public PyObject run(InputStream scriptStream, String filename) {
         try {
-            return run(compile(scriptStream));
+            return run(compile(scriptStream, filename));
         } catch (PyUnwind e) {
             System.err.println(ExceptionsRegistry.formatError(e.payload));
             return PyNone.INSTANCE;
@@ -109,5 +126,10 @@ public class Interpreter {
             e.printStackTrace(System.err);
             return PyNone.INSTANCE;
         }
+    }
+
+    @SuppressWarnings("UnusedReturnValue")
+    public PyObject run(InputStream scriptStream) {
+        return run(scriptStream, "<input>");
     }
 }

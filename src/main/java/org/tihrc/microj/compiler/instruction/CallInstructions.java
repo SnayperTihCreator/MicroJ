@@ -13,6 +13,7 @@ import org.tihrc.microj.types.runtime.PyCode;
 import org.tihrc.microj.units.Constants;
 import org.tihrc.microj.units.FastMap;
 import org.tihrc.microj.units.Frame;
+import org.tihrc.microj.units.LineTables;
 
 import java.util.Arrays;
 import java.util.List;
@@ -24,15 +25,14 @@ public class CallInstructions {
         if (f.locals != ctx.getGlobals()) {
             for (String free : freeVars) {
                 PyObject cur = f.locals.get(free);
-                if (cur instanceof PyCell cell) {
-                    closure.put(free, cell);
-                } else if (cur != null) {
+                if (cur instanceof PyCell cell) closure.put(free, cell);
+                else if (cur != null) {
                     PyCell cell = new PyCell(cur);
                     f.locals.put(free, cell);
                     closure.put(free, cell);
-                } else if (f.closure != null && f.closure.get(free) instanceof PyCell outer) {
+                } else if (f.closure != null && f.closure.get(free) instanceof PyCell outer)
                     closure.put(free, outer);
-                } else {
+                else {
                     PyCell cell = new PyCell(null);
                     f.locals.put(free, cell);
                     closure.put(free, cell);
@@ -43,11 +43,12 @@ public class CallInstructions {
     }
 
     public record MakeFunction(String name, List<Instruction> body, List<String> params,
-                               String starArg, String kwArg, List<String> freeVars) implements Instruction {
+                               String starArg, String kwArg, List<String> freeVars, List<int[]> funcLines) implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter vm) {
             Map<String, PyObject> closure = new FastMap<>();
             PyObject defaults = preBindFreeVars(f, vm, freeVars, closure);
-            f.stack.push(new PyFunction(name, body, params, starArg, kwArg, closure, defaults, f.constants));
+            f.stack.push(new PyFunction(name, body, params, starArg, kwArg,
+                    closure, defaults, f.constants, LineTables.build(body.size(), funcLines)));
             return true;
         }
     }

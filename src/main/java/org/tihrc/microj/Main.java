@@ -39,9 +39,6 @@ public class Main {
         }));
         interpreter.getLib().registerScript(gameModule);
 
-        System.out.println("BaseException = " + ExceptionsRegistry.get("BaseException"));
-        System.out.println("ALL.size = " + ExceptionsRegistry.ALL.size());
-
         String scriptPath = "scripts/main.py";
         InputStream stream = Main.class.getClassLoader().getResourceAsStream(scriptPath);
         interpreter.run(stream);

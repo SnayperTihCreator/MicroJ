@@ -1,7 +1,7 @@
 package org.tihrc.microj.core.exceptions;
 
 @SuppressWarnings("unused")
-public class Exceptions {
+public final class Exceptions {
     private Exceptions() {}
 
     public static class PyException extends PyBaseException {

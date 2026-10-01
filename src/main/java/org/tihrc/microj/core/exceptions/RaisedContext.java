@@ -1,16 +1,18 @@
 package org.tihrc.microj.core.exceptions;
 
 public class RaisedContext {
-    public String functionName;
-    public int line;
+    public final String filename;
+    public final String functionName;
+    public final int line;
 
-    public RaisedContext(String functionName, int line) {
+    public RaisedContext(String filename, String functionName, int line) {
+        this.filename = filename;
         this.functionName = functionName;
         this.line = line;
     }
 
     @Override
     public String toString() {
-        return "  File \"<script>\", line " + line + ", in " + functionName;
+        return "  File \"%s\", line %d, in %s".formatted(filename, line, functionName);
     }
 }

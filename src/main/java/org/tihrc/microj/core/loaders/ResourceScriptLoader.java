@@ -1,21 +1,15 @@
 package org.tihrc.microj.core.loaders;
 
-import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.CommonTokenStream;
-import org.tihrc.microj.antlr.MicroJLexer;
-import org.tihrc.microj.antlr.MicroJParser;
-import org.tihrc.microj.compiler.IndentingLexer;
-import org.tihrc.microj.compiler.Instruction;
-import org.tihrc.microj.compiler.InstructionGenerator;
+import org.tihrc.microj.core.Interpreter;
 import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.RuntimeLibrary;
 import org.tihrc.microj.core.RuntimeExecuter;
+import org.tihrc.microj.core.exceptions.PyUnwind;
 import org.tihrc.microj.core.transforms.Transforms;
 import org.tihrc.microj.types.objects.PyModule;
+import org.tihrc.microj.types.primitives.PyString;
 
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.util.List;
 
 public class ResourceScriptLoader implements ScriptLoader {
     private final RuntimeLibrary library;
@@ -25,39 +19,33 @@ public class ResourceScriptLoader implements ScriptLoader {
     }
 
     @Override
-    public PyModule loadModule(String moduleName, RuntimeExecuter vm) throws Exception {
+    public PyModule loadModule(String moduleName, RuntimeExecuter ctx) throws Exception {
+        String foundPath = null;
         InputStream stream = null;
-
-        for (PyObject pathObj : vm.getVM().state.sysPath.getInner()) {
-
-            String dir = Transforms.checkString(pathObj).value;
-            String path = dir + moduleName + ".py";
-
-            stream = ResourceScriptLoader.class.getClassLoader().getResourceAsStream(path);
-            if (stream != null) {
-                break;
+        Interpreter vm = ctx.getVM();
+        try {
+            for (PyObject pathObj : vm.state.sysPath.getInner()) {
+                String dir = Transforms.checkString(pathObj).value;
+                String path = dir.endsWith("/") ? dir + moduleName + ".py" : dir + "/" + moduleName + ".py";
+                InputStream s = ResourceScriptLoader.class.getClassLoader().getResourceAsStream(path);
+                if (s != null) { stream = s; foundPath = path; break; }
             }
+            if (stream == null) return null;
+
+            var script = vm.compile(stream, foundPath);
+
+            RuntimeLibrary.PyFileModule scriptModule = new RuntimeLibrary.PyFileModule(moduleName);
+            library.registerScript(scriptModule);
+            try {
+                var rr = vm.runWithCtx(script);
+                scriptModule.importAttributesFromGlobals(rr.ctx().getGlobals());
+                return scriptModule;
+            } catch (PyUnwind e) {
+                vm.state.modules.getInner().remove(new PyString(moduleName));
+                throw e;
+            }
+        } finally {
+            if (stream != null) stream.close();
         }
-
-        if (stream == null) {
-            return null;
-        }
-
-        MicroJLexer lexer = new IndentingLexer(CharStreams.fromStream(stream, StandardCharsets.UTF_8));
-        CommonTokenStream tokens = new CommonTokenStream(lexer);
-        MicroJParser parser = new MicroJParser(tokens);
-        var tree = parser.file();
-
-        InstructionGenerator generator = new InstructionGenerator();
-        List<Instruction> bytecode = generator.visit(tree);
-
-        RuntimeLibrary.PyFileModule scriptModule = new RuntimeLibrary.PyFileModule(moduleName);
-        library.registerScript(scriptModule);
-
-        RuntimeExecuter moduleVm = new RuntimeExecuter(vm.getVM());
-        moduleVm.run(bytecode);
-        scriptModule.importAttributesFromGlobals(moduleVm.getGlobals());
-
-        return scriptModule;
     }
 }

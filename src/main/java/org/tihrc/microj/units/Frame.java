@@ -17,12 +17,19 @@ public class Frame {
     public Deque<int[]> tryHandlers = null;
     public PyObject[] constants;
 
+    public String functionName = "<module>";
+    public int[] lineTable = null;
+
     private Set<String> nonlocalNames = null;
     private Set<String> globalNames = null;
 
     public void pushTryHandler(int target, int prevPc) {
         if (tryHandlers == null) tryHandlers = new ArrayDeque<>();
         tryHandlers.push(new int[]{target, prevPc});
+    }
+
+    public int currentLine() {
+        return (lineTable != null && pc >= 0 && pc < lineTable.length) ? lineTable[pc] : -1;
     }
 
     public Frame(List<Instruction> code, PyObject[] constants) {
@@ -45,9 +52,11 @@ public class Frame {
         return frame;
     }
 
-    public static Frame fromGlobals(List<Instruction> code, Map<String, PyObject> globals, PyObject[] constants) {
+    public static Frame fromGlobals(List<Instruction> code, Map<String, PyObject> globals,
+                                    PyObject[] constants, int[] lineTable) {
         Frame frame = new Frame(code, constants);
         frame.locals = globals;
+        frame.lineTable = lineTable;
         return frame;
     }
 
@@ -58,6 +67,8 @@ public class Frame {
         this.pc = 0;
         this.stack.clear();
         this.locals.clear();
+        this.functionName = "<module>";
+        this.lineTable = null;
         if (this.tryHandlers != null) this.tryHandlers.clear();
         if (nonlocalNames != null) nonlocalNames.clear();
         if (globalNames != null) globalNames.clear();
@@ -70,6 +81,8 @@ public class Frame {
         this.pc = 0;
         this.stack.clear();
         this.locals.clear();
+        this.functionName = "<module>";
+        this.lineTable = null;
         if (this.tryHandlers != null) this.tryHandlers.clear();
         if (nonlocalNames != null) nonlocalNames.clear();
         if (globalNames != null) globalNames.clear();

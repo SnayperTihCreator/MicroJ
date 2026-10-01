@@ -47,6 +47,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 tasks.withType(JavaExec).configureEach {
+    systemProperty 'microj.nojit', false
     systemProperty 'file.encoding', 'UTF-8'
     systemProperty 'sun.stdout.encoding', 'UTF-8'
     systemProperty 'sun.stderr.encoding', 'UTF-8'

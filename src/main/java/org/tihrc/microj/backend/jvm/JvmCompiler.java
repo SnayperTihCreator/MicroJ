@@ -19,6 +19,7 @@ import org.tihrc.microj.types.primitives.PyString;
 import org.tihrc.microj.types.runtime.PyCode;
 import org.tihrc.microj.types.sequences.PyGeneratorFunc;
 import org.tihrc.microj.units.Constants;
+import org.tihrc.microj.units.LineTables;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -33,10 +34,10 @@ public class JvmCompiler implements Opcodes, AsmTypes {
     private record Jump(int from, int to) {}
 
     public JvmScript compile(InstructionGenerator.CompiledScript script){
-        return compile(script.code(), script.constants());
+        return compile(script.code(), script.constants(), script.lineTable());
     }
 
-    public JvmScript compile(List<Instruction> code, PyObject[] constants) {
+    public JvmScript compile(List<Instruction> code, PyObject[] constants, int[] lineTable) {
         String className = "%sgen.Script$%s".formatted(PREFIX2, CLASS_COUNTER.incrementAndGet());
         String internalClassName = className.replace('.', '/');
 
@@ -94,8 +95,13 @@ public class JvmCompiler implements Opcodes, AsmTypes {
             int blockLastResultSlot = 4;
             int blockTempSlot = 5;
 
+            bmv.visitVarInsn(ALOAD, 1);
+            bmv.visitLdcInsn("<module>");
+            bmv.visitMethodInsn(INVOKEVIRTUAL, RUN_EXECUTER, "setCurrentFunction", "(Ljava/lang/String;)V", false);
+
             compileBlock(cw, bmv, subCode, block.start(), block.end(), internalClassName, localSlots, new HashSet<>(),
-                    new HashMap<>(), blockLocalsSlot, blockClosureSlot, blockTempSlot, blockLastResultSlot, new HashSet<>(), new HashSet<>(), false);
+                    new HashMap<>(), blockLocalsSlot, blockClosureSlot, blockTempSlot, blockLastResultSlot,
+                    new HashSet<>(), new HashSet<>(), false, lineTable, "<module>");
 
             if (subCode.isEmpty() || !(subCode.getLast() instanceof StackInstructions.ReturnValue)) {
                 pushInt(bmv, block.end() < code.size() ? block.end() : -1);
@@ -304,9 +310,11 @@ public class JvmCompiler implements Opcodes, AsmTypes {
     private void compileBlock(ClassWriter cw, MethodVisitor mv, List<Instruction> code, int blockStart, int blockEnd,
                               String internalClassName, Map<String, Integer> localSlots, Set<String> cellVars,
                               Map<String, Integer> outerSlots, int localsSlot, int closureSlot, int tempSlot,
-                              int lastResultSlot, Set<String> globals, Set<String> nonlocals, boolean functionBody) {
+                              int lastResultSlot, Set<String> globals, Set<String> nonlocals, boolean functionBody,
+                              int[] lineTable, String pyFuncName) {
 
         Map<Integer, Label> jumpTargets = new HashMap<>();
+        int lastLine = -1;
 
         for (int i = 0; i < code.size(); i++) {
             int absIndex = blockStart + i;
@@ -354,6 +362,16 @@ public class JvmCompiler implements Opcodes, AsmTypes {
                 mv.visitLabel(jumpTargets.get(absIndex));
                 if (catchTargets.contains(absIndex)) {
                     mv.visitFieldInsn(GETFIELD, PY_UNWIND, "payload", "L%s;".formatted(PY_OBJECT));
+                }
+            }
+
+            if (lineTable != null && absIndex < lineTable.length) {
+                int ln = lineTable[absIndex];
+                if (ln > 0 && (ln != lastLine || jumpTargets.containsKey(absIndex))) {
+                    mv.visitVarInsn(ALOAD, 1);
+                    pushInt(mv, ln);
+                    mv.visitMethodInsn(INVOKEVIRTUAL, RUN_EXECUTER, "setCurrentLine", "(I)V", false);
+                    lastLine = ln;
                 }
             }
 
@@ -405,9 +423,10 @@ public class JvmCompiler implements Opcodes, AsmTypes {
                 case ControlFlowInstructions.GetIter() -> emitGetIter(mv);
                 case ControlFlowInstructions.ForIter(int target) -> emitForIter(mv, jumpTargets, target, blockStart, blockEnd);
 
-                case CallInstructions.MakeFunction(String name, List<Instruction> body, List<String> params, String starArg, String kwArg, List<String> freeVars) ->
+                case CallInstructions.MakeFunction(String name, List<Instruction> body, List<String> params,
+                                                   String starArg, String kwArg, List<String> freeVars, List<int[]> funcLines) ->
                         emitMakeFunction(cw, internalClassName, body, mv, params, name, starArg, kwArg, freeVars,
-                                localSlots, outerSlots, nonlocals, localsSlot, closureSlot, tempSlot);
+                                localSlots, outerSlots, nonlocals, localsSlot, closureSlot, tempSlot, funcLines);
                 case CallInstructions.CallFunction(int posCount, String[] kwNames) ->
                         emitCallFunction(mv, posCount, kwNames, tempSlot);
                 case CallInstructions.MakeGenerator(String name, int codeIndex, List<String> params, String starArg, String kwArg, List<String> freeVars) ->
@@ -515,9 +534,15 @@ public class JvmCompiler implements Opcodes, AsmTypes {
 
     private void compileFunctionBody(ClassWriter cw, String internalClassName, String methodName,
                                      List<Instruction> body, List<String> params, String starArg, String kwArg,
-                                     List<String> freeVars) {
+                                     List<String> freeVars, String pyName, List<int[]> funcLines) {
         MethodVisitor mv = cw.visitMethod(ACC_PRIVATE, methodName, FUNC_METHOD_DESC, null, null);
         mv.visitCode();
+
+        int[] lineTable = LineTables.build(body.size(), funcLines);
+
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitLdcInsn(pyName);
+        mv.visitMethodInsn(INVOKEVIRTUAL, RUN_EXECUTER, "setCurrentFunction", "(Ljava/lang/String;)V", false);
 
         Map<String, Integer> localSlots = new HashMap<>();
         Set<String> globals = new HashSet<>();
@@ -603,7 +628,8 @@ public class JvmCompiler implements Opcodes, AsmTypes {
         }
 
         compileBlock(cw, mv, body, 0, body.size(), internalClassName, localSlots, cellVars, outerSlots,
-                localsSlot, closureSlot, tempSlot, lastResultSlot, globals, nonlocals, true);
+                localsSlot, closureSlot, tempSlot, lastResultSlot, globals, nonlocals, true,
+                lineTable, pyName);
 
         if (body.isEmpty() || !(body.getLast() instanceof StackInstructions.ReturnValue)) {
             mv.visitVarInsn(ALOAD, lastResultSlot);
@@ -618,7 +644,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
         Set<String> cellVars = new HashSet<>();
         for (Instruction instr : body) {
             List<String> fv = switch (instr) {
-                case CallInstructions.MakeFunction(var n, var b, var p, var s, var k, List<String> v) -> v;
+                case CallInstructions.MakeFunction(var n, var b, var p, var s, var k, List<String> v, var l) -> v;
                 case CallInstructions.MakeGenerator(var n, var ci, var p, var s, var k, List<String> v) -> v;
                 default -> List.of();
             };
@@ -942,14 +968,15 @@ public class JvmCompiler implements Opcodes, AsmTypes {
     private void emitMakeFunction(ClassWriter cw, String internalClassName, List<Instruction> body, MethodVisitor mv,
                                   List<String> params, String name, String starArg, String kwArg, List<String> freeVars,
                                   Map<String, Integer> localSlots, Map<String, Integer> outerSlots,
-                                  Set<String> nonlocals, int localsSlot, int closureSlot, int tempSlot) {
+                                  Set<String> nonlocals, int localsSlot, int closureSlot, int tempSlot, List<int[]> funcLines) {
         String funcMethodName = "func$" + FUNC_COUNTER.incrementAndGet();
         List<String> included = new ArrayList<>();
         for (String f : freeVars) {
             if (localSlots.containsKey(f) || outerSlots.containsKey(f)) included.add(f);
         }
 
-        compileFunctionBody(cw, internalClassName, funcMethodName, body, params, starArg, kwArg, included);
+        compileFunctionBody(cw, internalClassName, funcMethodName, body, params, starArg, kwArg, included,
+                name, funcLines);
         mv.visitVarInsn(ASTORE, tempSlot + 2);
 
         pushInt(mv, included.size());
