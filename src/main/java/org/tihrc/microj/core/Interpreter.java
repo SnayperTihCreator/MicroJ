@@ -12,6 +12,7 @@ import org.tihrc.microj.compiler.ThrowingErrorListener;
 import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.core.exceptions.ExceptionsRegistry;
 import org.tihrc.microj.core.exceptions.PyUnwind;
+import org.tihrc.microj.core.transforms.JavaTypes;
 import org.tihrc.microj.types.core.PyContext;
 import org.tihrc.microj.types.core.PyNone;
 
@@ -35,6 +36,14 @@ public final class Interpreter {
         stl = new StandardLibrary(this);
         lib = new RuntimeLibrary(this, stl);
         state = new InterpreterState(stl.getModules());
+    }
+
+    public void javaClass(String name, Class<?> type) {
+        lib.getBuiltins().registerAttribute(name, JavaTypes.of(type));
+    }
+
+    public void bind(String name, Object host) {
+        lib.getBuiltins().registerAttribute(name, JavaTypes.wrap(host));
     }
 
     public RuntimeLibrary getLib() {

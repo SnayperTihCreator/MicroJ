@@ -12,6 +12,10 @@ import org.tihrc.microj.types.core.PyNone;
 import java.io.InputStream;
 
 public class Main {
+    public record Vec2(int x, int y) {
+        public Vec2 add(Vec2 o) { return new Vec2(x + o.x, y + o.y); }
+    }
+
     @SuppressWarnings("DataFlowIssue")
     public static void main(String[] ignored) {
         Interpreter interpreter = new Interpreter();
@@ -38,6 +42,10 @@ public class Main {
             });
         }));
         interpreter.getLib().registerScript(gameModule);
+
+        interpreter.javaClass("Bridge", Bridge.class);
+        interpreter.javaClass("Vec2", Vec2.class);
+        interpreter.bind("v", new Vec2(1, 1));
 
         String scriptPath = "scripts/main.py";
         InputStream stream = Main.class.getClassLoader().getResourceAsStream(scriptPath);

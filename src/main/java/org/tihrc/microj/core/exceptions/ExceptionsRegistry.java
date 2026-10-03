@@ -14,11 +14,14 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+@SuppressWarnings("unused")
 public final class ExceptionsRegistry {
     private ExceptionsRegistry() {}
 
     public static final Map<String, PyClassException> ALL = new FastMap<>();
-    public static void register(PyClassException cls) { ALL.put(cls.name, cls); }
+    public static void register(PyClassException cls) {
+        ALL.put(cls.name, cls);
+    }
 
     public static final PyClassException BASE_EXCEPTION  = new PyClassException("BaseException", PyBaseException.class);
     public static final PyClassException SYSTEM_EXIT     = new PyClassException("SystemExit", BaseExceptions.PySystemExit.class, BASE_EXCEPTION);
@@ -60,7 +63,23 @@ public final class ExceptionsRegistry {
     public static final PyClassException INDENTATION_ERROR = new PyClassException("IndentationError", Exceptions.PyIndentationError.class, SYNTAX_ERROR);
     public static final PyClassException TAB_ERROR       = new PyClassException("TabError", Exceptions.PyTabError.class, INDENTATION_ERROR);
 
-//    public static final PyClassException OS_ERROR        = new PyClassException("OSError", OSExceptions.class-related /* см. ниже */, EXCEPTION);
+    public static final PyClassException OS_ERROR = new PyClassException("OSError", OSExceptions.PyOSError.class, EXCEPTION);
+    public static final PyClassException BLOCKING_IO_ERROR = new PyClassException("BlockingIOError", OSExceptions.PyBlockingIOError.class, OS_ERROR);
+    public static final PyClassException CHILD_PROCESS_ERROR = new PyClassException("ChildProcessError", OSExceptions.PyChildProcessError.class, OS_ERROR);
+    public static final PyClassException FILE_EXISTS_ERROR = new PyClassException("FileExistsError", OSExceptions.PyFileExistsError.class, OS_ERROR);
+    public static final PyClassException FILE_NOT_FOUND_ERROR = new PyClassException("FileNotFoundError", OSExceptions.PyFileNotFoundError.class, OS_ERROR);
+    public static final PyClassException INTERRUPTED_ERROR = new PyClassException("InterruptedError", OSExceptions.PyInterruptedError.class, OS_ERROR);
+    public static final PyClassException IS_A_DIRECTORY_ERROR = new PyClassException("IsADirectoryError", OSExceptions.PyIsADirectoryError.class, OS_ERROR);
+    public static final PyClassException NOT_A_DIRECTORY_ERROR = new PyClassException("NotADirectoryError", OSExceptions.PyNotADirectoryError.class, OS_ERROR);
+    public static final PyClassException PERMISSION_ERROR = new PyClassException("PermissionError", OSExceptions.PyPermissionError.class, OS_ERROR);
+    public static final PyClassException PROCESS_LOOKUP_ERROR = new PyClassException("ProcessLookupError", OSExceptions.PyProcessLookupError.class, OS_ERROR);
+    public static final PyClassException TIMEOUT_ERROR = new PyClassException("TimeoutError", OSExceptions.PyTimeoutError.class, OS_ERROR);
+
+    public static final PyClassException CONNECTION_ERROR = new PyClassException("ConnectionError", OSExceptions.PyConnectionError.class, OS_ERROR);
+    public static final PyClassException BROKEN_PIPE_ERROR = new PyClassException("BrokenPipeError", OSExceptions.PyBrokenPipeError.class, CONNECTION_ERROR);
+    public static final PyClassException CONNECTION_ABORTED_ERROR = new PyClassException("ConnectionAbortedError", OSExceptions.PyConnectionAbortedError.class, CONNECTION_ERROR);
+    public static final PyClassException CONNECTION_REFUSED_ERROR = new PyClassException("ConnectionRefusedError", OSExceptions.PyConnectionRefusedError.class, CONNECTION_ERROR);
+    public static final PyClassException CONNECTION_RESET_ERROR = new PyClassException("ConnectionResetError", OSExceptions.PyConnectionResetError.class, CONNECTION_ERROR);
 
     public static void registerBuiltins(PyModule builtins) {
         for (Map.Entry<String, PyClassException> e : ALL.entrySet())
@@ -71,13 +90,18 @@ public final class ExceptionsRegistry {
 
     public static boolean matches(PyObject exc, String typeName) {
         if (typeName == null) return true;
-        PyClass target = ALL.get(typeName);
+        PyClassException target = ALL.get(typeName);
         if (target == null)
             return errorTypeOf(exc).equals(typeName);
+        return matches(exc, target);
+    }
+
+    public static boolean matches(PyObject exc, PyClassException target) {
+        if (target == null) return true;
         if (exc instanceof PyInstance inst)
             return matchesClass(inst.pyClass, target, new HashSet<>());
         if (exc instanceof PyBaseException pe) {
-            Class<? extends PyBaseException> t = ALL.get(typeName).error;
+            Class<? extends PyBaseException> t = target.error;
             return t != null && t.isInstance(pe);
         }
         return false;
@@ -91,6 +115,7 @@ public final class ExceptionsRegistry {
         return false;
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public static boolean isExceptionClass(PyClass cls) {
         return cls instanceof PyClassException || matchesClass(cls, BASE_EXCEPTION, new HashSet<>());
     }
@@ -108,7 +133,7 @@ public final class ExceptionsRegistry {
     }
 
     public static Integer systemExitCode(PyObject exc) {
-        if (!matches(exc, "SystemExit")) return null;
+        if (!matches(exc, SYSTEM_EXIT)) return null;
         if (exc instanceof BaseExceptions.PySystemExit se)
             return se.getExitCode();
         if (exc instanceof PyInstance inst) {

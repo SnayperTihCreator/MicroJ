@@ -12,7 +12,7 @@ import org.tihrc.microj.units.FastMap;
 import java.util.Arrays;
 import java.util.Map;
 
-public class PyClassException extends PyClass{
+public final class PyClassException extends PyClass{
     public final Class<? extends PyBaseException> error;
 
     public PyClassException(String name, Class<? extends PyBaseException> error, PyClass... bases) {
