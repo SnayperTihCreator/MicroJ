@@ -34,7 +34,7 @@ public class PyInt extends PyObject implements Protocols.PyNumber, Protocols.PyC
     }
 
     public static PyInt from(SmartInt value) {
-        if (value.isInt()) {
+        if (value.hasIntStorage()) {
             int i = value.toInt();
             if (i >= CACHE_MIN && i <= CACHE_MAX) return CACHE[i - CACHE_MIN];
         }
@@ -80,10 +80,12 @@ public class PyInt extends PyObject implements Protocols.PyNumber, Protocols.PyC
     @PyExport(name = "__pow__")
     public PyObject pyDanderPow(PyObject other) {
         if (other instanceof PyInt o) {
-            if (o.value.isNegative())
+            if (o.value.signum() < 0)
                 return new PyFloat(new SmartFloat(Math.pow(value.toDouble(), o.value.toDouble())));
             SmartInt r = value.pow(o.value);
-            return r != null ? PyInt.from(r) : new PyFloat(new SmartFloat(Math.pow(value.toDouble(), o.value.toDouble())));
+            if (r == null)
+                return new PyFloat(new SmartFloat(Math.pow(value.toDouble(), o.value.toDouble())));
+            return PyInt.from(r);
         }
         if (other instanceof PyFloat f)
             return new PyFloat(new SmartFloat(Math.pow(value.toDouble(), f.value.toDouble())));
@@ -212,7 +214,7 @@ public class PyInt extends PyObject implements Protocols.PyNumber, Protocols.PyC
     @PyExport(name = "__format__")
     public PyObject pyDanderFormat(String spec) {
         if (spec == null || spec.isEmpty()) return new PyString(pyDanderStr());
-        return new PyString(FormatSpecs.pyIntSpec(value.toLong(), spec));
+        return new PyString(FormatSpecs.pyIntSpec(value, spec));
     }
 
     @Override

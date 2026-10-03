@@ -13,6 +13,7 @@ public abstract class SmartNumber implements Comparable<SmartNumber> {
     public abstract SmartNumber add(SmartNumber other);
     public abstract SmartNumber sub(SmartNumber other);
     public abstract SmartNumber mul(SmartNumber other);
+    public abstract SmartNumber pow(SmartNumber exp);
     public abstract SmartNumber div(SmartNumber other);
     public abstract SmartNumber floorDiv(SmartNumber other);
     public abstract SmartNumber mod(SmartNumber other);

@@ -166,6 +166,7 @@ public final class SmartFloat extends SmartNumber {
     @Override public SmartFloat div(SmartNumber o)       { return div(o.toSmartFloat()); }
     @Override public SmartNumber floorDiv(SmartNumber o) { return floorDiv(o.toSmartFloat()); }
     @Override public SmartNumber mod(SmartNumber o)      { return mod(o.toSmartFloat()); }
+    @Override public SmartNumber pow(SmartNumber o) { return this; }
 
     @Override
     public SmartFloat negate() {

@@ -54,6 +54,8 @@ public final class SmartInt extends SmartNumber {
         }
     }
 
+    public boolean hasIntStorage() { return type == StorageType.INT; }
+
     private static boolean willLongAddOverflow(long a, long b) {
         if (b > 0 && a > Long.MAX_VALUE - b) return true;
         return b < 0 && a < Long.MIN_VALUE - b;
@@ -194,6 +196,9 @@ public final class SmartInt extends SmartNumber {
     }
     @Override public SmartFloat div(SmartNumber o) {   // ковариантный возврат
         return (o instanceof SmartFloat f) ? div(f) : div((SmartInt) o);
+    }
+    @Override public SmartNumber pow(SmartNumber o) {
+        return  (o instanceof SmartFloat f)? pow(f): pow((SmartInt) o);
     }
     @Override public SmartNumber floorDiv(SmartNumber o) {
         return (o instanceof SmartFloat f) ? floorDiv(f) : floorDiv((SmartInt) o);

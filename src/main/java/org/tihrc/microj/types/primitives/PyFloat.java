@@ -228,7 +228,7 @@ public class PyFloat extends PyObject implements Protocols.PyNumber, Protocols.P
     @PyExport(name = "__format__")
     public PyObject pyDanderFormat(String spec) {
         if (spec == null || spec.isEmpty()) return new PyString(pyDanderStr());
-        return new PyString(FormatSpecs.pyFloatSpec(value.toDouble(), spec));
+        return new PyString(FormatSpecs.pyFloatSpec(value, spec));
     }
 
     @Override

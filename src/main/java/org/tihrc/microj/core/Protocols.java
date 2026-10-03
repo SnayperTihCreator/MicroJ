@@ -5,7 +5,8 @@ import org.tihrc.microj.units.FastMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
-public class Protocols {
+public final class Protocols {
+    private Protocols() {}
 
     public interface PyCallable {
         PyObject pyDanderCall(RuntimeExecuter ctx, Map<String, PyObject> kwargs, PyObject... args);

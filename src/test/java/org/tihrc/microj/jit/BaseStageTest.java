@@ -16,7 +16,7 @@ public class BaseStageTest {
         var compiledCode = interpreter.compile(code);
 
         JvmCompiler jvmCompiler = new JvmCompiler();
-        JvmScript script = jvmCompiler.compile(compiledCode.code(), compiledCode.constants());
+        JvmScript script = jvmCompiler.compile(compiledCode.code(), compiledCode.constants(), compiledCode.lineTable());
 
         RuntimeExecuter ctx = new RuntimeExecuter(interpreter);
         return script.execute(ctx);
@@ -28,7 +28,7 @@ public class BaseStageTest {
             var compiled = interpreter.compile(new ByteArrayInputStream(code.getBytes(StandardCharsets.UTF_8)));
 
             JvmCompiler jvmCompiler = new JvmCompiler();
-            JvmScript script = jvmCompiler.compile(compiled.code(), compiled.constants());
+            JvmScript script = jvmCompiler.compile(compiled.code(), compiled.constants(), compiled.lineTable());
 
             RuntimeExecuter ctx = new RuntimeExecuter(interpreter);
 
