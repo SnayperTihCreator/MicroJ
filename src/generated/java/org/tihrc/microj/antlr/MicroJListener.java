@@ -28,6 +28,16 @@ public interface MicroJListener extends ParseTreeListener {
 	 */
 	void exitStatement(MicroJParser.StatementContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link MicroJParser#suite}.
+	 * @param ctx the parse tree
+	 */
+	void enterSuite(MicroJParser.SuiteContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MicroJParser#suite}.
+	 * @param ctx the parse tree
+	 */
+	void exitSuite(MicroJParser.SuiteContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link MicroJParser#simpleStatement}.
 	 * @param ctx the parse tree
 	 */

@@ -9,7 +9,7 @@ import org.tihrc.microj.antlr.MicroJParser;
 import java.util.ArrayDeque;
 import java.util.Deque;
 
-public class IndentingLexer extends MicroJLexer {
+public final class IndentingLexer extends MicroJLexer {
     private final Deque<Integer> indents = new ArrayDeque<>();
     private final Deque<Token> tokenQueue = new ArrayDeque<>();
     private Token lastToken = null;

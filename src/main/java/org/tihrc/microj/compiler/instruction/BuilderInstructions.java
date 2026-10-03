@@ -17,7 +17,7 @@ import java.util.Map;
 
 public class BuilderInstructions {
     public record BuildList(int size) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             if (size > 100) {
                 System.err.println("[WARNING] Large list building detected: " + size + " elements");
             }
@@ -31,7 +31,7 @@ public class BuilderInstructions {
     }
 
     public record BuildMap(int size) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             Map<PyObject, PyObject> map = new LinkedHashMap<>();
             for (int i = 0; i < size; i++) {
                 PyObject val = f.stack.pop();
@@ -44,7 +44,7 @@ public class BuilderInstructions {
     }
 
     public record BuildTuple(int size) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject[] items = new PyObject[size];
             for (int i = size - 1; i >= 0; i--) {
                 items[i] = f.stack.pop();
@@ -55,11 +55,11 @@ public class BuilderInstructions {
     }
 
     public record BuildClass(String name, String[] bases) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             List<PyClass> resolvedBases = new ArrayList<>();
             for (String baseName : bases) {
                 PyObject baseObj = f.locals.get(baseName);
-                if (baseObj == null) baseObj = vm.getGlobals().get(baseName);
+                if (baseObj == null) baseObj = ctx.getGlobals().get(baseName);
                 if (baseObj instanceof PyClass baseClass) {
                     resolvedBases.add(baseClass);
                 }
@@ -73,7 +73,7 @@ public class BuilderInstructions {
     }
 
     public record UnpackSequence(int count) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject seq = f.stack.pop();
             if (seq instanceof Protocols.PyContainer pySeq) {
                 for (int i = 0; i < count; i++) {

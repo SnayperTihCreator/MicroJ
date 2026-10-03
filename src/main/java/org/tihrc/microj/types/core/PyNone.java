@@ -5,7 +5,7 @@ import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.transforms.PyExport;
 import org.tihrc.microj.types.primitives.PyBool;
 
-public class PyNone extends PyObject implements Protocols.PyComparable {
+public final class PyNone extends PyObject implements Protocols.PyComparable {
     public static final PyNone INSTANCE = new PyNone();
 
     private PyNone() {}

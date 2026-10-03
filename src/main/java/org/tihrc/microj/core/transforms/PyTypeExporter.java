@@ -9,7 +9,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
 
 
-public class PyTypeExporter extends ClassValue<FastMap<PyObject>> {
+public final class PyTypeExporter extends ClassValue<FastMap<PyObject>> {
     public static final PyTypeExporter INSTANCE = new PyTypeExporter();
     public interface PyFunc0 {
         Object call(Object self);

@@ -7,7 +7,7 @@ import org.tihrc.microj.units.FastMap;
 import java.util.Map;
 import java.util.Set;
 
-public class StandardLibrary {
+public final class StandardLibrary {
     private final Map<String, PyModule> modules = new FastMap<>();
 
     public StandardLibrary(Interpreter interpreter) {

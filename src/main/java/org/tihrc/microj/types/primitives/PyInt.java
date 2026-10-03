@@ -77,6 +77,20 @@ public class PyInt extends PyObject implements Protocols.PyNumber, Protocols.PyC
     }
 
     @Override
+    @PyExport(name = "__pow__")
+    public PyObject pyDanderPow(PyObject other) {
+        if (other instanceof PyInt o) {
+            if (o.value.isNegative())
+                return new PyFloat(new SmartFloat(Math.pow(value.toDouble(), o.value.toDouble())));
+            SmartInt r = value.pow(o.value);
+            return r != null ? PyInt.from(r) : new PyFloat(new SmartFloat(Math.pow(value.toDouble(), o.value.toDouble())));
+        }
+        if (other instanceof PyFloat f)
+            return new PyFloat(new SmartFloat(Math.pow(value.toDouble(), f.value.toDouble())));
+        return PyNotImplemented.INSTANCE;
+    }
+
+    @Override
     @PyExport(name = "__truediv__")
     public PyObject pyDanderTrueDiv(PyObject other) {
         other = asInt(other);

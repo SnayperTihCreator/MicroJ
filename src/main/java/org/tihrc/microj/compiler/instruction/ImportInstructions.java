@@ -10,23 +10,23 @@ import java.util.List;
 
 public class ImportInstructions {
     public record Import(String moduleName, String alias) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
-            RuntimeLibrary library = vm.getVM().getLib();
-            PyModule module = library.resolveModule(moduleName, vm);
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
+            RuntimeLibrary library = ctx.getVM().getLib();
+            PyModule module = library.resolveModule(moduleName, ctx);
 
             if (module == null) {
                 return new Exceptions.PyImportError("No module named '" + moduleName + "'").raise();
             }
 
             String storeName = alias != null ? alias : moduleName;
-            vm.getGlobals().put(storeName, module);
+            ctx.getGlobals().put(storeName, module);
             return true;
         }
     }
     public record ImportFrom(String moduleName, List<String> names) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
-            RuntimeLibrary library = vm.getVM().getLib();
-            PyModule module = library.resolveModule(moduleName, vm);
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
+            RuntimeLibrary library = ctx.getVM().getLib();
+            PyModule module = library.resolveModule(moduleName, ctx);
 
             if (module == null) {
                 return new Exceptions.PyImportError("No module named '" + moduleName + "'").raise();
@@ -37,7 +37,7 @@ public class ImportInstructions {
                 if (attr == null) {
                     return new Exceptions.PyImportError("cannot import name '" + name + "' from '" + moduleName + "'").raise();
                 }
-                vm.getGlobals().put(name, attr);
+                ctx.getGlobals().put(name, attr);
             }
             return true;
         }

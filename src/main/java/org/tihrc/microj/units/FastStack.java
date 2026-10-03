@@ -4,7 +4,7 @@ import org.tihrc.microj.core.PyObject;
 
 import java.util.Arrays;
 
-public class FastStack {
+public final class FastStack {
     private PyObject[] array;
     private int sp = 0;
 

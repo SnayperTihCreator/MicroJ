@@ -8,7 +8,7 @@ import org.tihrc.microj.core.transforms.Transforms;
 import org.tihrc.microj.types.primitives.PyBool;
 import org.tihrc.microj.types.primitives.PyInt;
 
-public class PyRange extends PyObject implements Protocols.PyIterable, Protocols.PyContainer {
+public final class PyRange extends PyObject implements Protocols.PyIterable, Protocols.PyContainer {
     private final int start;
     private final int stop;
     private final int step;

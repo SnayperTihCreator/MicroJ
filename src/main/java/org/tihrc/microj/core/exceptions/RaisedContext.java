@@ -1,15 +1,6 @@
 package org.tihrc.microj.core.exceptions;
 
-public class RaisedContext {
-    public final String filename;
-    public final String functionName;
-    public final int line;
-
-    public RaisedContext(String filename, String functionName, int line) {
-        this.filename = filename;
-        this.functionName = functionName;
-        this.line = line;
-    }
+public record RaisedContext(String filename, String functionName, int line) {
 
     @Override
     public String toString() {

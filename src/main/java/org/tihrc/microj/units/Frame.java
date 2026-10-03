@@ -7,7 +7,7 @@ import org.tihrc.microj.core.exceptions.PyBaseException;
 import java.util.*;
 import java.util.function.Consumer;
 
-public class Frame {
+public final class Frame {
     public List<Instruction> code;
     public int pc = 0;
 

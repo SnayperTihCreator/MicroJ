@@ -14,7 +14,7 @@ import org.tihrc.microj.units.Frame;
 
 public class AttributeInstructions {
     public record GetAttr(String name) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject obj = f.stack.pop();
             PyObject attr = obj.findAttribute(name);
             if (attr != null) {
@@ -33,7 +33,7 @@ public class AttributeInstructions {
     }
 
     public record SetAttr(String name) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject value = f.stack.pop();
             PyObject obj = f.stack.pop();
 

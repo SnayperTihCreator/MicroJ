@@ -3,7 +3,7 @@ package org.tihrc.microj.units;
 import java.util.*;
 import java.util.AbstractMap;
 
-public class FastMap<V> implements Map<String, V> {
+public final class FastMap<V> implements Map<String, V> {
     private String[] keys;
     private V[] values;
     private int size = 0;

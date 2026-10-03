@@ -205,6 +205,7 @@ public class PyString extends PyObject implements Protocols.PyNumber, Protocols.
     }
 
     @Override public PyObject pyDanderMod(PyObject object) { return PyNotImplemented.INSTANCE; }
+    @Override public PyObject pyDanderPow(PyObject exp) { return PyNotImplemented.INSTANCE; }
     @Override public PyObject pyDanderFloorDiv(PyObject other) { return PyNotImplemented.INSTANCE; }
     @Override public PyObject pyDanderSub(PyObject other) { return PyNotImplemented.INSTANCE; }
     @Override public PyObject pyDanderTrueDiv(PyObject other) { return PyNotImplemented.INSTANCE; }

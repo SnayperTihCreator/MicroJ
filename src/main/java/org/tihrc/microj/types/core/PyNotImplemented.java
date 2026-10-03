@@ -2,7 +2,7 @@ package org.tihrc.microj.types.core;
 
 import org.tihrc.microj.core.PyObject;
 
-public class PyNotImplemented extends PyObject {
+public final class PyNotImplemented extends PyObject {
     public static final PyNotImplemented INSTANCE = new PyNotImplemented();
     private PyNotImplemented() {}
 

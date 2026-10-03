@@ -14,6 +14,7 @@ public class PyFloat extends PyObject implements Protocols.PyNumber, Protocols.P
     public static final PyFloat INF = new PyFloat(new SmartFloat(Double.POSITIVE_INFINITY));
 
     public PyFloat(SmartFloat value) { this.value = value; }
+    public PyFloat(double value) { this.value = new SmartFloat(value); }
 
     private static boolean isNaNVal(SmartFloat f) {
         return Double.isNaN(f.toDouble());
@@ -46,6 +47,16 @@ public class PyFloat extends PyObject implements Protocols.PyNumber, Protocols.P
         if (other instanceof PyFloat f)  return new PyFloat(value.mul(f.value));
         if (other instanceof PyInt i)    return new PyFloat(value.mul(i.value));
         if (other instanceof PyComplex c) return c.pyDanderRMul(this);
+        return PyNotImplemented.INSTANCE;
+    }
+
+    @Override
+    @PyExport(name = "__pow__")
+    public PyObject pyDanderPow(PyObject exp) {
+        exp = PyInt.asInt(exp);
+        if (exp instanceof PyFloat f)  return new PyFloat(Math.pow(value.toDouble(), f.value.toDouble()));
+        if (exp instanceof PyInt i)    return new PyFloat(Math.pow(value.toDouble(), i.value.toDouble()));
+//        if (exp instanceof PyComplex c) return c.pyDanderRMul(this);
         return PyNotImplemented.INSTANCE;
     }
 

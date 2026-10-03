@@ -25,6 +25,7 @@ public interface AsmTypes {
     String JVM_SCRIPT       = "org/tihrc/microj/backend/jvm/JvmScript";
     String JVM_COMPILER     = "org/tihrc/microj/backend/jvm/JvmCompiler";
     String JIT_FUNCTION     = "org/tihrc/microj/backend/jvm/JitFunction";
+    String HELPER           =  "org/tihrc/microj/backend/jvm/JvmHelper";
 
     String OBJECT           = "java/lang/Object";
     String STRING           = "java/lang/String";

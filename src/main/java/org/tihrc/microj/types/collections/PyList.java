@@ -148,6 +148,7 @@ public class PyList extends PyObject implements Protocols.PyContainer, Protocols
     }
 
     @Override public PyObject pyDanderMod(PyObject other) { return PyNotImplemented.INSTANCE; }
+    @Override public PyObject pyDanderPow(PyObject exp) { return PyNotImplemented.INSTANCE; }
     @Override public PyObject pyDanderSub(PyObject other) { return PyNotImplemented.INSTANCE; }
     @Override public PyObject pyDanderTrueDiv(PyObject other) { return PyNotImplemented.INSTANCE; }
     @Override public PyObject pyDanderNeg() { return PyNotImplemented.INSTANCE; }

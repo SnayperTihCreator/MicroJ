@@ -97,6 +97,7 @@ public class PyComplex extends PyObject implements Protocols.PyNumber, Protocols
         return o != null ? PyBool.from(!value.equals(o)) : PyNotImplemented.INSTANCE;
     }
 
+    @Override public PyObject pyDanderPow(PyObject exp) {return PyNotImplemented.INSTANCE;}
     @Override public PyObject pyDanderFloorDiv(PyObject other) { return PyNotImplemented.INSTANCE; }
     @Override public PyObject pyDanderMod(PyObject other)      { return PyNotImplemented.INSTANCE; }
     @Override public PyObject pyDanderLt(PyObject other)       { return PyNotImplemented.INSTANCE; }

@@ -1,39 +1,25 @@
-# 1. deep chain
-def inner():
-    raise ValueError("deep")
+import microj
+print(microj.backend)
 
-def middle():
-    inner()
-    print("never1")
+class Odd:
+    def __init__(self, n): self.n = n
+    def __bool__(self): return self.n > 0
 
-try:
-    middle()
-except ValueError as e:
-    print("caught:", e)
+o = Odd(0)
+if o: print("never")
+print("ok1")
+o2 = Odd(3)
+if o2: print("truthy")
+
+class Box:
+    def __len__(self): return 0
+b = Box()
+if b: print("never2")
+print("ok2")
+
+print(1 and 2 and 3)      # 3
+print(0 or "d" or 3)      # d
+print(not 0, not 5)       # True False
+assert Odd(0) or "fallback"
+print(2 ** 100)           # bigint-путь
 print("done")
-
-# 2. forward ref
-def a():
-    return b() + 1
-
-def b():
-    return 1
-print(a())                          # 2
-
-# 3. настоящая ячейка
-def outer():
-    x = 10
-    def get():
-        return x
-    return get()
-print(outer())                      # 10
-
-# 4. цепочка ячеек
-def l1():
-    x = 5
-    def l2():
-        def l3():
-            return x
-        return l3()
-    return l2()
-print(l1())                         # 5

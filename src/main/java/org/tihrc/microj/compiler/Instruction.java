@@ -5,5 +5,5 @@ import org.tihrc.microj.core.exceptions.PyUnwind;
 import org.tihrc.microj.units.Frame;
 
 public interface Instruction {
-    boolean execute(Frame frame, RuntimeExecuter vm) throws PyUnwind;
+    boolean execute(Frame frame, RuntimeExecuter ctx) throws PyUnwind;
 }

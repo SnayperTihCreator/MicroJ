@@ -21,7 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.WeakHashMap;
 
-public class Interpreter {
+public final class Interpreter {
     @SuppressWarnings("FieldCanBeLocal")
     private final StandardLibrary stl;
     private final RuntimeLibrary lib;

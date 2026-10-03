@@ -5,7 +5,7 @@ import java.math.BigInteger;
 import java.math.MathContext;
 import java.util.Objects;
 
-public class SmartInt extends SmartNumber {
+public final class SmartInt extends SmartNumber {
     private enum StorageType {INT, LONG, BIG_INTEGER}
 
     private final StorageType type;
@@ -14,6 +14,7 @@ public class SmartInt extends SmartNumber {
     private final BigInteger bigValue;
 
     public static final SmartInt ZERO = new SmartInt(0);
+    public static final SmartInt ONE = new SmartInt(1);
 
     public SmartInt(int value) {
         this.type = StorageType.INT;
@@ -114,6 +115,29 @@ public class SmartInt extends SmartNumber {
         long res = (long) this.intValue * other.intValue;
         if (res < Integer.MIN_VALUE || res > Integer.MAX_VALUE) return new SmartInt(res);
         return new SmartInt((int) res);
+    }
+
+    public SmartInt pow(SmartInt other) {
+        int exp = other.toInt();
+        if (exp < 0) return null;
+        if (exp == 0) return SmartInt.ONE;
+        if (this.type == StorageType.BIG_INTEGER || other.type == StorageType.BIG_INTEGER)
+            return new SmartInt(this.toBigInteger().pow(exp));
+        long base = this.toLong();
+        long acc = 1;
+        for (int bit = 0; bit < 32 && (exp >> bit) > 0; bit++) {
+            if ((exp & (1 << bit)) != 0) {
+                if (willLongMulOverflow(acc, base)) return new SmartInt(
+                        BigInteger.valueOf(acc).multiply(BigInteger.valueOf(base)).pow(1));
+                acc *= base;
+            }
+            if ((exp >> (bit + 1)) > 0) {
+                if (willLongMulOverflow(base, base))
+                    return new SmartInt(this.toBigInteger().pow(exp));
+                base *= base;
+            }
+        }
+        return new SmartInt(acc);
     }
 
     public SmartInt floorDiv(SmartInt other) {

@@ -6,7 +6,7 @@ import java.math.MathContext;
 import java.math.RoundingMode;
 import java.util.Objects;
 
-public class SmartFloat extends SmartNumber {
+public final class SmartFloat extends SmartNumber {
     private enum Type { DOUBLE, BIG_DECIMAL }
 
     private final Type type;

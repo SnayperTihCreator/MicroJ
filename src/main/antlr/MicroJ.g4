@@ -33,6 +33,8 @@ statement: simpleStatement
     | yieldStatement
     ;
 
+suite: simpleStatement | NEWLINE block;
+
 simpleStatement:
     (assignment
     | expr
@@ -41,12 +43,15 @@ simpleStatement:
     | continueStatement
     | PASS) NEWLINE;
 
-funcDef: decorator* DEF NAME LPAREN paramList? RPAREN COLON NEWLINE block;
-classDef: CLASS NAME (LPAREN baseList? RPAREN)? COLON NEWLINE block;
+funcDef: decorator* DEF NAME LPAREN paramList? RPAREN COLON suite;
+classDef: CLASS NAME (LPAREN baseList? RPAREN)? COLON suite;
+
 baseList: NAME (COMMA NAME)* ;
 decorator: AT expr NEWLINE;
+
 paramList: param (COMMA param)* ;
 param: NAME (EQUAL expr)? | STAR NAME | POW NAME ;
+
 returnStatement: RETURN exprList?;
 globalStatement: GLOBAL NAME (COMMA NAME)* NEWLINE;
 nonlocalStatement: NONLOCAL NAME (COMMA NAME)* NEWLINE;
@@ -54,22 +59,22 @@ yieldStatement: YIELD expr? NEWLINE;
 breakStatement: BREAK;
 continueStatement: CONTINUE;
 
-tryStatement: TRY COLON NEWLINE block
-             (EXCEPT exceptClause? COLON NEWLINE block)*
-             (ELSE COLON NEWLINE block)?
-             (FINALLY COLON NEWLINE block)?;
+tryStatement: TRY COLON suite
+             (EXCEPT exceptClause? COLON suite)*
+             (ELSE COLON suite)?
+             (FINALLY COLON suite)?;
 
-withStatement: WITH expr (AS NAME)? COLON NEWLINE block;
+withStatement: WITH expr (AS NAME)? COLON suite;
 delStatement: DEL targetList NEWLINE;
 assertStatement: ASSERT expr (COMMA expr)? NEWLINE;
 exceptClause: NAME (AS NAME)? | AS NAME;
 raiseStatement: RAISE expr? NEWLINE;
 
-ifStatement: IF expr COLON NEWLINE block
-           (ELIF expr COLON NEWLINE block)*
-           (ELSE COLON NEWLINE block)?;
-whileStatement: WHILE expr COLON NEWLINE block (ELSE COLON NEWLINE block)?;
-forStatement: FOR targetList IN expr COLON NEWLINE block (ELSE COLON NEWLINE block)?;
+ifStatement: IF expr COLON suite
+           (ELIF expr COLON suite)*
+           (ELSE COLON suite)?;
+whileStatement: WHILE expr COLON suite (ELSE COLON suite)?;
+forStatement: FOR targetList IN expr COLON suite (ELSE COLON suite)?;
 block: INDENT (NEWLINE | statement)+ DEDENT;
 
 assignment

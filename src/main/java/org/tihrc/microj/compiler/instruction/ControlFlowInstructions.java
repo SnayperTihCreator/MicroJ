@@ -1,5 +1,7 @@
 package org.tihrc.microj.compiler.instruction;
 
+import org.tihrc.microj.backend.jvm.JvmCompiler;
+import org.tihrc.microj.backend.jvm.JvmHelder;
 import org.tihrc.microj.compiler.Instruction;
 import org.tihrc.microj.core.exceptions.ExceptionsRegistry;
 import org.tihrc.microj.core.exceptions.PyUnwind;
@@ -12,23 +14,9 @@ import org.tihrc.microj.types.primitives.PyBool;
 
 public class ControlFlowInstructions {
     public record PopJumpIfFalse(int target) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject cond = f.stack.pop();
-            boolean truthy;
-
-            if (cond instanceof Protocols.PyComparable cmp) {
-                truthy = cmp.pyDanderBool();
-            } else {
-                PyObject method = cond.findAttribute("__bool__");
-                if (method != null) {
-                    PyObject res = vm.callSync(method, cond);
-                    truthy = !(res instanceof PyBool b) || b.pyDanderBool();
-                } else {
-                    truthy = true;
-                }
-            }
-
-            if (!truthy) {
+            if (!JvmHelder.truthy(ctx, cond)) {
                 f.pc = target;
                 return false;
             }
@@ -37,68 +25,38 @@ public class ControlFlowInstructions {
     }
 
     public record JumpAbsolute(int target) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             f.pc = target;
             return false;
         }
     }
 
     public record JumpIfFalseOrPop(int target) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject cond = f.stack.peek();
-            boolean truthy;
-
-            if (cond instanceof Protocols.PyComparable cmp) {
-                truthy = cmp.pyDanderBool();
-            } else {
-                PyObject method = cond.findAttribute("__bool__");
-                if (method != null) {
-                    PyObject res = vm.callSync(method, cond);
-                    truthy = !(res instanceof PyBool b) || b.pyDanderBool();
-                } else {
-                    truthy = true;
-                }
-            }
-
-            if (!truthy) {
+            if (!JvmHelder.truthy(ctx, cond)) {
                 f.pc = target;
                 return false;
-            } else {
-                f.stack.pop();
-                return true;
             }
+            f.stack.pop();
+            return true;
         }
     }
 
     public record JumpIfTrueOrPop(int target) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject cond = f.stack.peek();
-            boolean truthy;
-
-            if (cond instanceof Protocols.PyComparable cmp) {
-                truthy = cmp.pyDanderBool();
-            } else {
-                PyObject method = cond.findAttribute("__bool__");
-                if (method != null) {
-                    PyObject res = vm.callSync(method, cond);
-                    truthy = !(res instanceof PyBool b) || b.pyDanderBool();
-                } else {
-                    truthy = true;
-                }
-            }
-
-            if (truthy) {
+            if (JvmHelder.truthy(ctx, cond)) {
                 f.pc = target;
                 return false;
-            } else {
-                f.stack.pop();
-                return true;
             }
+            f.stack.pop();
+            return true;
         }
     }
 
     public record GetIter() implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject obj = f.stack.pop();
 
             if (obj instanceof Protocols.PyIterable iter) {
@@ -108,7 +66,7 @@ public class ControlFlowInstructions {
 
             if (obj.hasCap(Capability.ITERABLE)) {
                 PyObject method = obj.findAttribute("__iter__");
-                PyObject result = vm.callSync(method, obj);
+                PyObject result = ctx.callSync(method, obj);
                 f.stack.push(result);
                 return true;
             }
@@ -118,7 +76,7 @@ public class ControlFlowInstructions {
     }
 
     public record ForIter(int target) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject iterObj = f.stack.peek();
 
             if (iterObj instanceof Protocols.PyIterator iter) {
@@ -145,7 +103,7 @@ public class ControlFlowInstructions {
                     }
 
                     f.pc++;
-                    vm.pushTask(newFrame.createTask(
+                    ctx.pushTask(newFrame.createTask(
                             result -> {
                                 if (result == PyNone.INSTANCE) {
                                     f.stack.pop();

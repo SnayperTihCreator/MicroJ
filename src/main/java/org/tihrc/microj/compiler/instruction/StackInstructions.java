@@ -11,20 +11,20 @@ import org.tihrc.microj.units.FrameTask;
 
 public class StackInstructions {
     public record LoadConst(int index) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             f.stack.push(f.constants[index]);
             return true;
         }
     }
     public record StoreName(String name) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject value = f.stack.pop();
             if (f.isNonlocal(name) && f.closure != null) {
                 PyObject cur = f.closure.get(name);
                 if (cur instanceof PyCell cell) cell.value = value;
                 else f.closure.put(name, new PyCell(value));
             } else if (f.isGlobal(name)) {
-                vm.getGlobals().put(name, value);
+                ctx.getGlobals().put(name, value);
             } else {
                 PyObject cur = f.locals.get(name);
                 if (cur instanceof PyCell cell) cell.value = value;
@@ -34,10 +34,10 @@ public class StackInstructions {
         }
     }
     public record LoadName(String name) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject value;
 
-            if (f.locals == vm.getGlobals()) value = f.locals.get(name);
+            if (f.locals == ctx.getGlobals()) value = f.locals.get(name);
             else {
                 PyObject local = f.locals.get(name);
                 if (local instanceof PyCell cell) {
@@ -52,11 +52,11 @@ public class StackInstructions {
                     else if (c != null) value = c;
                 }
 
-                if (value == null) value = vm.getGlobals().get(name);
+                if (value == null) value = ctx.getGlobals().get(name);
             }
 
             if (value == null)
-                value = vm.getBuiltins().findAttribute(name);
+                value = ctx.getBuiltins().findAttribute(name);
 
             if (value == null)
                 return new Exceptions.PyNameError("name '" + name + "' is not defined").raise();
@@ -67,9 +67,9 @@ public class StackInstructions {
     }
 
     public record DeleteName(String name) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             if (f.isGlobal(name)) {
-                vm.getGlobals().remove(name);
+                ctx.getGlobals().remove(name);
             } else {
                 PyObject cur = f.locals.get(name);
                 if (cur instanceof PyCell cell) cell.value = null;
@@ -80,30 +80,30 @@ public class StackInstructions {
     }
 
     public record Global(String name) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             f.declareGlobal(name);
             return true;
         }
     }
 
     public record Nonlocal(String name) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             f.declareNonLocal(name);
             return true;
         }
     }
 
     public record PopTop() implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             f.stack.pop();
             return true;
         }
     }
 
     public record ReturnValue() implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject retVal = f.stack.pop();
-            FrameTask task = vm.popTask();
+            FrameTask task = ctx.popTask();
             task.result(retVal);
 
             if (task.callback() != null) task.callback().accept(retVal);
@@ -113,9 +113,9 @@ public class StackInstructions {
     }
 
     public record Yield() implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject val = f.stack.isEmpty() ? PyNone.INSTANCE : f.stack.pop();
-            FrameTask task = vm.getCurrentTask();
+            FrameTask task = ctx.getCurrentTask();
             task.result(val);
             task.yielded(true);
             return true;

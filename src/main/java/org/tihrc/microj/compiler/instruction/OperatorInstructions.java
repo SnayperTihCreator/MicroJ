@@ -1,5 +1,7 @@
 package org.tihrc.microj.compiler.instruction;
 
+import org.tihrc.microj.backend.jvm.JvmCompiler;
+import org.tihrc.microj.backend.jvm.JvmHelder;
 import org.tihrc.microj.compiler.BinaryOperator;
 import org.tihrc.microj.compiler.Instruction;
 import org.tihrc.microj.compiler.UnaryOperator;
@@ -15,59 +17,24 @@ import org.tihrc.microj.units.SmartInt;
 
 public class OperatorInstructions {
     public record BinaryOp(BinaryOperator type) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject right = f.stack.pop();
             PyObject left = f.stack.pop();
             PyObject res = switch (type) {
-                case ADD -> left instanceof Protocols.PyNumber n
-                        ? n.pyDanderAdd(right)
-                        : PyNotImplemented.INSTANCE;
+                case ADD -> left instanceof Protocols.PyNumber n?n.pyDanderAdd(right):PyNotImplemented.INSTANCE;
+                case SUB -> left instanceof Protocols.PyNumber n?n.pyDanderSub(right):PyNotImplemented.INSTANCE;
+                case MUL -> left instanceof Protocols.PyNumber n?n.pyDanderMul(right):PyNotImplemented.INSTANCE;
+                case DIV -> left instanceof Protocols.PyNumber n?n.pyDanderTrueDiv(right):PyNotImplemented.INSTANCE;
+                case FLOOR_DIV -> left instanceof Protocols.PyNumber n?n.pyDanderFloorDiv(right):PyNotImplemented.INSTANCE;
+                case MOD -> left instanceof Protocols.PyNumber n?n.pyDanderMod(right):PyNotImplemented.INSTANCE;
+                case POW -> left instanceof Protocols.PyNumber n?n.pyDanderPow(right):PyNotImplemented.INSTANCE;
 
-                case SUB -> left instanceof Protocols.PyNumber n
-                        ? n.pyDanderSub(right)
-                        : PyNotImplemented.INSTANCE;
-
-                case MUL -> left instanceof Protocols.PyNumber n
-                        ? n.pyDanderMul(right)
-                        : PyNotImplemented.INSTANCE;
-
-                case DIV -> left instanceof Protocols.PyNumber n
-                        ? n.pyDanderTrueDiv(right)
-                        : PyNotImplemented.INSTANCE;
-
-                case FLOOR_DIV -> left instanceof Protocols.PyNumber n
-                        ? n.pyDanderFloorDiv(right)
-                        : PyNotImplemented.INSTANCE;
-
-                case MOD -> left instanceof Protocols.PyNumber n
-                        ? n.pyDanderMod(right)
-                        : PyNotImplemented.INSTANCE;
-
-                case POW -> PyNotImplemented.INSTANCE;
-
-                case EQ -> left instanceof Protocols.PyComparable c
-                        ? c.pyDanderEq(right)
-                        : PyNotImplemented.INSTANCE;
-
-                case NE -> left instanceof Protocols.PyComparable c
-                        ? c.pyDanderNe(right)
-                        : PyNotImplemented.INSTANCE;
-
-                case LT -> left instanceof Protocols.PyComparable c
-                        ? c.pyDanderLt(right)
-                        : PyNotImplemented.INSTANCE;
-
-                case LE -> left instanceof Protocols.PyComparable c
-                        ? c.pyDanderLe(right)
-                        : PyNotImplemented.INSTANCE;
-
-                case GT -> left instanceof Protocols.PyComparable c
-                        ? c.pyDanderGt(right)
-                        : PyNotImplemented.INSTANCE;
-
-                case GE -> left instanceof Protocols.PyComparable c
-                        ? c.pyDanderGe(right)
-                        : PyNotImplemented.INSTANCE;
+                case EQ -> left instanceof Protocols.PyComparable c?c.pyDanderEq(right):PyNotImplemented.INSTANCE;
+                case NE -> left instanceof Protocols.PyComparable c?c.pyDanderNe(right):PyNotImplemented.INSTANCE;
+                case LT -> left instanceof Protocols.PyComparable c?c.pyDanderLt(right):PyNotImplemented.INSTANCE;
+                case LE -> left instanceof Protocols.PyComparable c?c.pyDanderLe(right):PyNotImplemented.INSTANCE;
+                case GT -> left instanceof Protocols.PyComparable c?c.pyDanderGt(right):PyNotImplemented.INSTANCE;
+                case GE -> left instanceof Protocols.PyComparable c?c.pyDanderGe(right):PyNotImplemented.INSTANCE;
             };
 
             if (res != PyNotImplemented.INSTANCE) {
@@ -81,15 +48,12 @@ public class OperatorInstructions {
                 if (method instanceof PyFunction pyMethod) {
                     Frame newFrame = pyMethod.createClosure();
 
-                    if (!pyMethod.params.isEmpty()) {
+                    if (!pyMethod.params.isEmpty())
                         newFrame.locals.put(pyMethod.params.getFirst(), left);  // self
-                    }
-                    if (pyMethod.params.size() > 1) {
+                    if (pyMethod.params.size() > 1)
                         newFrame.locals.put(pyMethod.params.get(1), right); // other
-                    }
-
                     f.pc++;
-                    vm.pushTask(newFrame.createTask(f.stack::push));
+                    ctx.pushTask(newFrame.createTask(f.stack::push));
                     return false;
                 }
             }
@@ -97,7 +61,7 @@ public class OperatorInstructions {
         }
     }
     public record BinaryIn(boolean inverted) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject container = f.stack.pop();  // правый операнд
             PyObject item = f.stack.pop();        // левый операнд
 
@@ -125,7 +89,7 @@ public class OperatorInstructions {
                     }
 
                     f.pc++;
-                    vm.pushTask(newFrame.createTask(result -> {
+                    ctx.pushTask(newFrame.createTask(result -> {
                         boolean truthy;
                         if (result instanceof Protocols.PyComparable cmp) {
                             truthy = cmp.pyDanderBool();
@@ -145,7 +109,7 @@ public class OperatorInstructions {
         }
     }
     public record BinarySubscript() implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject index = f.stack.pop();
             PyObject left = f.stack.pop();
 
@@ -154,7 +118,7 @@ public class OperatorInstructions {
             if (left instanceof Protocols.PyContainer container) {
                 result = container.pyDanderGetItem(index);
             } else {
-                result = PyProtocolFacade.getItem(left, index, vm);
+                result = PyProtocolFacade.getItem(left, index, ctx);
             }
 
             f.stack.push(result);
@@ -163,7 +127,7 @@ public class OperatorInstructions {
     }
 
     public record StoreSubscript() implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject value = f.stack.pop();
             PyObject index = f.stack.pop();
             PyObject left = f.stack.pop();
@@ -190,7 +154,7 @@ public class OperatorInstructions {
                     }
 
                     f.pc++;
-                    vm.pushTask(newFrame.createTask(res -> {}));
+                    ctx.pushTask(newFrame.createTask(res -> {}));
                     return false;
                 }
             }
@@ -200,7 +164,7 @@ public class OperatorInstructions {
     }
 
     public record UnaryOp(UnaryOperator type) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject operand = f.stack.pop();
 
             if (operand instanceof Protocols.PyNumber num) {
@@ -219,7 +183,7 @@ public class OperatorInstructions {
                         newFrame.locals.put(pyMethod.params.getFirst(), operand);
                     }
                     f.pc++;
-                    vm.pushTask(newFrame.createTask(f.stack::push));
+                    ctx.pushTask(newFrame.createTask(f.stack::push));
                     return false;
                 }
             }
@@ -229,33 +193,8 @@ public class OperatorInstructions {
     }
 
     public record UnaryNot() implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
-            PyObject operand = f.stack.pop();
-            boolean truthy;
-
-            if (operand instanceof Protocols.PyComparable cmp) {
-                truthy = cmp.pyDanderBool();
-            }
-
-            else if (operand instanceof Protocols.PyContainer seq) {
-                int result = seq.pyDanderLen();
-                truthy = result > 0;
-            }
-
-            else if (operand.hasCap(Capability.CONTAINER)) {
-                PyObject method = operand.findAttribute("__len__");
-                if (method instanceof Protocols.PyCallable builtin) {
-                    PyObject res = builtin.pyDanderCall(vm, FastMap.empty(), operand);
-                    truthy = res instanceof PyInt i && !i.value.equals(SmartInt.ZERO);
-                } else {
-                    truthy = true;
-                }
-            }
-            else {
-                truthy = true;
-            }
-
-            f.stack.push(PyBool.from(!truthy));
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
+            f.stack.push(PyBool.from(!JvmHelder.truthy(ctx, f.stack.pop())));
             return true;
         }
     }

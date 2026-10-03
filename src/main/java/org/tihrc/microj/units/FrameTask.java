@@ -6,7 +6,7 @@ import org.tihrc.microj.types.core.PyNone;
 
 import java.util.function.Consumer;
 
-public class FrameTask {
+public final class FrameTask {
     private final Frame frame;
     private final Consumer<PyObject> callback;
     private final Consumer<PyObject> onFailure;

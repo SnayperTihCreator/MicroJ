@@ -1,6 +1,7 @@
 package org.tihrc.microj.types.callables;
 
 import org.tihrc.microj.backend.jvm.JvmCompiler;
+import org.tihrc.microj.backend.jvm.JvmHelder;
 import org.tihrc.microj.compiler.Instruction;
 import org.tihrc.microj.core.Protocols;
 import org.tihrc.microj.core.PyObject;
@@ -56,7 +57,7 @@ public class PyFunction extends PyObject implements Protocols.PyCallable {
         if (args == null) args = Constants.NO_ARGS;
 
         PyObject[] slots = new PyObject[params.size() + (starArg != null ? 1 : 0) + (kwArg != null ? 1 : 0)];
-        JvmCompiler.bindArgs(ctx, slots, defaults, args, kwNames, kwValues,
+        JvmHelder.bindArgs(ctx, slots, defaults, args, kwNames, kwValues,
                 params.toArray(String[]::new), starArg, kwArg);
 
         for (int i = 0; i < params.size(); i++) frame.locals.put(params.get(i), slots[i]);

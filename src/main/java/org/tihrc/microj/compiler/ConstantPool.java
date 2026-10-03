@@ -7,7 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class ConstantPool {
+public final class ConstantPool {
     private final List<PyObject> values = new ArrayList<>();
     private final Map<PyObject, Integer> indexes = new HashMap<>();
 

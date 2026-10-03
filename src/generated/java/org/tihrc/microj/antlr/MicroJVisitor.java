@@ -23,6 +23,12 @@ public interface MicroJVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitStatement(MicroJParser.StatementContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link MicroJParser#suite}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSuite(MicroJParser.SuiteContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link MicroJParser#simpleStatement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result

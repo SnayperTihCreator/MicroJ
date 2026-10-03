@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class RuntimeLibrary {
+public final class RuntimeLibrary {
     private final Interpreter vm;
     private final StandardLibrary stl;
     private final PyModule builtins;

@@ -15,7 +15,7 @@ import org.tihrc.microj.units.FrameTask;
 
 import java.util.*;
 
-public class RuntimeExecuter {
+public final class RuntimeExecuter {
     private final Interpreter interpreter;
     private final Map<String, PyObject> globals = new FastMap<>();
     private final Deque<FrameTask> frameTasks = new ArrayDeque<>();

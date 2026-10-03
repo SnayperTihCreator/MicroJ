@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 @SuppressWarnings("unused")
-public class Transforms {
+public final class Transforms {
     private Transforms() {}
 
     @SuppressWarnings("unchecked")

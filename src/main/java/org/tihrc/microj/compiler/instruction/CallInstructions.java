@@ -44,9 +44,9 @@ public class CallInstructions {
 
     public record MakeFunction(String name, List<Instruction> body, List<String> params,
                                String starArg, String kwArg, List<String> freeVars, List<int[]> funcLines) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             Map<String, PyObject> closure = new FastMap<>();
-            PyObject defaults = preBindFreeVars(f, vm, freeVars, closure);
+            PyObject defaults = preBindFreeVars(f, ctx, freeVars, closure);
             f.stack.push(new PyFunction(name, body, params, starArg, kwArg,
                     closure, defaults, f.constants, LineTables.build(body.size(), funcLines)));
             return true;
@@ -55,9 +55,9 @@ public class CallInstructions {
 
     public record MakeGenerator(String name, int codeIndex, List<String> params,
                                 String starArg, String kwArg, List<String> freeVars) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             Map<String, PyObject> closure = new FastMap<>();
-            PyObject defaults = preBindFreeVars(f, vm, freeVars, closure);
+            PyObject defaults = preBindFreeVars(f, ctx, freeVars, closure);
             PyCode code = (PyCode) f.constants[codeIndex];
             f.stack.push(new PyGeneratorFunc(name, code.body, params, starArg, kwArg, closure, defaults, f.constants, code.lineTable));
             return true;
@@ -65,7 +65,7 @@ public class CallInstructions {
     }
 
     public record CallFunction(int posCount, String[] kwNames) implements Instruction {
-        public boolean execute(Frame f, RuntimeExecuter vm) {
+        public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject func = f.stack.pop();
             int kwCount = kwNames.length;
             PyObject[] kwValues = null;
@@ -83,19 +83,19 @@ public class CallInstructions {
             }
 
             if (func instanceof PyBoundMethod bound) {
-                PyObject result = bound.callBoundFast(vm, args, kwNames, kwValues);
+                PyObject result = bound.callBoundFast(ctx, args, kwNames, kwValues);
                 f.stack.push(result);
                 return true;
             }
 
             if (func instanceof PyFunction pyFunction) {
-                PyObject result = pyFunction.pyDanderCallFast(vm, args, kwNames, kwValues);
+                PyObject result = pyFunction.pyDanderCallFast(ctx, args, kwNames, kwValues);
                 f.stack.push(result);
                 return true;
             }
 
             if (func instanceof Protocols.PyCallable callable) {
-                PyObject result = callable.pyDanderCallFast(vm, args, kwNames, kwValues);
+                PyObject result = callable.pyDanderCallFast(ctx, args, kwNames, kwValues);
                 f.stack.push(result);
                 return true;
             }
@@ -107,7 +107,7 @@ public class CallInstructions {
                         callMethod = new PyBoundMethod(func, callMethod);
                     }
                     if (callMethod instanceof Protocols.PyCallable callable) {
-                        PyObject result = callable.pyDanderCallFast(vm, args, kwNames, kwValues);
+                        PyObject result = callable.pyDanderCallFast(ctx, args, kwNames, kwValues);
                         f.stack.push(result);
                         return true;
                     }

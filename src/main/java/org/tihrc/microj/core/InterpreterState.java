@@ -12,7 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class InterpreterState {
+public final class InterpreterState {
     public String backend = "bytecode";
     public int recursionLimit = 1500;
 

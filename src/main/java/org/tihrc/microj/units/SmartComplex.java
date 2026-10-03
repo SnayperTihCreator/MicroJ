@@ -2,7 +2,7 @@ package org.tihrc.microj.units;
 
 import java.util.Objects;
 
-public class SmartComplex {
+public final class SmartComplex {
     public static final SmartComplex ZERO = new SmartComplex(SmartFloat.ZERO, SmartFloat.ZERO);
     public static final SmartComplex ONE  = new SmartComplex(SmartFloat.ONE, SmartFloat.ZERO);
     public static final SmartComplex I    = new SmartComplex(SmartFloat.ZERO, SmartFloat.ONE);

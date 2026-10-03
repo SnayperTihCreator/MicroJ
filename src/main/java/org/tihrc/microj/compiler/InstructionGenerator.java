@@ -143,6 +143,12 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
     }
 
     @Override
+    public List<Instruction> visitSuite(MicroJParser.SuiteContext ctx) {
+        if (ctx.block() != null) return visit(ctx.block());
+        return visit(ctx.simpleStatement());
+    }
+
+    @Override
     public List<Instruction> visitSimpleStatement(MicroJParser.SimpleStatementContext ctx) {
         if (ctx.PASS() != null) {
             return bytecode;
@@ -211,7 +217,7 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
         int setupIndex = bytecode.size();
         bytecode.add(null);
 
-        visit(ctx.block(0));
+        visit(ctx.suite(0));
 
         bytecode.add(new ErrorInstructions.PopTry());
 
@@ -256,7 +262,7 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
                 bytecode.add(new StackInstructions.PopTop());
             }
             excTemps.push(excTemp);
-            visit(ctx.block(i + 1));
+            visit(ctx.suite(i + 1));
             excTemps.pop();
             bytecode.add(new ControlFlowInstructions.JumpAbsolute(jumpToFinallyIndex));
         }
@@ -272,11 +278,11 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
         }
 
         if (ctx.ELSE() != null) {
-            visit(ctx.block(ctx.EXCEPT().size() + 1));
+            visit(ctx.suite(ctx.EXCEPT().size() + 1));
         }
         int finallyTarget = bytecode.size();
         if (ctx.FINALLY() != null) {
-            visit(ctx.block(ctx.block().size() - 1));
+            visit(ctx.suite(ctx.suite().size() - 1));
         }
 
         bytecode.set(jumpToFinallyIndex, new ControlFlowInstructions.JumpAbsolute(finallyTarget));
@@ -352,7 +358,7 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
         popJumpIndices.add(bytecode.size());
         bytecode.add(null);
 
-        visit(ctx.block(0));
+        visit(ctx.suite(0));
         jumpEndIndices.add(bytecode.size());
         bytecode.add(null);
         int elifCount = ctx.ELIF().size();
@@ -362,7 +368,7 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
             visit(ctx.expr(i + 1));
             popJumpIndices.add(bytecode.size());
             bytecode.add(null);
-            visit(ctx.block(i + 1));
+            visit(ctx.suite(i + 1));
 
             jumpEndIndices.add(bytecode.size());
             bytecode.add(null);
@@ -371,7 +377,7 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
         int elseOrEndIndex = bytecode.size();
         if (ctx.ELSE() != null) {
             bytecode.set(popJumpIndices.getLast(), new ControlFlowInstructions.PopJumpIfFalse(elseOrEndIndex));
-            visit(ctx.block(1 + elifCount));
+            visit(ctx.suite(1 + elifCount));
         } else {
             bytecode.set(popJumpIndices.getLast(), new ControlFlowInstructions.PopJumpIfFalse(elseOrEndIndex));
         }
@@ -414,7 +420,7 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
         this.bytecode = new ArrayList<>();
         this.loopStack = new ArrayDeque<>();
         this.lineMarkers = new ArrayList<>();
-        visit(ctx.block());
+        visit(ctx.suite());
 
         if (bytecode.isEmpty() || !(bytecode.getLast() instanceof StackInstructions.ReturnValue)) {
             bytecode.add(new StackInstructions.LoadConst(INDEX_NONE));
@@ -510,7 +516,7 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
 
         this.bytecode = new ArrayList<>();
         this.loopStack = new ArrayDeque<>();
-        visit(ctx.block());
+        visit(ctx.suite());
         bytecode.add(new BuilderInstructions.BuildClass(ctx.NAME().getText(), bases.toArray(new String[0])));
         bytecode.add(new StackInstructions.ReturnValue());
 
@@ -551,11 +557,11 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
         int exitJumpIndex = bytecode.size();
         bytecode.add(null);
 
-        visit(ctx.block(0));
+        visit(ctx.suite(0));
         bytecode.add(new ControlFlowInstructions.JumpAbsolute(startIndex));
         int elseOrEndIndex = bytecode.size();
         if (ctx.ELSE() != null) {
-            visit(ctx.block(1));
+            visit(ctx.suite(1));
         }
 
         int endIndex = bytecode.size();
@@ -718,7 +724,7 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
         }
         int setupIndex = bytecode.size();
         bytecode.add(null);
-        visit(ctx.block());
+        visit(ctx.suite());
         bytecode.add(new ErrorInstructions.PopTry());
         int jumpToNormalExit = bytecode.size();
         bytecode.add(null);
@@ -1072,12 +1078,12 @@ public class InstructionGenerator extends MicroJBaseVisitor<List<Instruction>> {
         if (targets.size() == 1) visitTarget(targets.getFirst());
         else visitTargetList(ctx.targetList());
 
-        visit(ctx.block(0));
+        visit(ctx.suite(0));
         bytecode.add(new ControlFlowInstructions.JumpAbsolute(startIndex));
 
         int elseOrEndIndex = bytecode.size();
         if (ctx.ELSE() != null) {
-            visit(ctx.block(1));
+            visit(ctx.suite(1));
         }
 
         int endIndex = bytecode.size();
