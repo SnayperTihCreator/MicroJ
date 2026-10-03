@@ -7,19 +7,6 @@ import org.tihrc.microj.compiler.InstructionGenerator;
 import org.tihrc.microj.compiler.UnaryOperator;
 import org.tihrc.microj.compiler.instruction.*;
 import org.tihrc.microj.core.*;
-import org.tihrc.microj.core.exceptions.*;
-import org.tihrc.microj.types.core.PyContext;
-import org.tihrc.microj.types.core.PyNotImplemented;
-import org.tihrc.microj.types.objects.PyClass;
-import org.tihrc.microj.types.objects.PyInstance;
-import org.tihrc.microj.types.collections.*;
-import org.tihrc.microj.types.primitives.PyFloat;
-import org.tihrc.microj.types.primitives.PyInt;
-import org.tihrc.microj.types.core.PyNone;
-import org.tihrc.microj.types.primitives.PyString;
-import org.tihrc.microj.types.runtime.PyCode;
-import org.tihrc.microj.types.sequences.PyGeneratorFunc;
-import org.tihrc.microj.units.Constants;
 import org.tihrc.microj.units.LineTables;
 
 import java.util.*;
@@ -398,7 +385,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
                 case ErrorInstructions.SetupExcept(int ignore) -> {}
                 case ErrorInstructions.PopTry() -> {}
                 case ErrorInstructions.ReRaise() ->
-                        mv.visitMethodInsn(INVOKESTATIC, HELPER, "reRaise", JvmHelder.SreRaise, false);
+                        mv.visitMethodInsn(INVOKESTATIC, HELPER, "reRaise", JvmHelper.SreRaise, false);
                 case ErrorInstructions.CheckException(String typeName, int target) ->
                         emitCheckException(mv, typeName, target, jumpTargets, blockStart, blockEnd);
                 case ErrorInstructions.Assert() -> emitAssert(mv);
@@ -454,7 +441,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
 
     private static void emitForIter(MethodVisitor mv, Map<Integer, Label> jumpTargets, int target, int blockStart, int blockEnd) {
         mv.visitInsn(DUP);
-        mv.visitMethodInsn(INVOKESTATIC, HELPER, "forIterNext", JvmHelder.SforIterNext, false);
+        mv.visitMethodInsn(INVOKESTATIC, HELPER, "forIterNext", JvmHelper.SforIterNext, false);
 
         mv.visitInsn(DUP);
         Label notNull = new Label();
@@ -479,7 +466,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
         } else {
             mv.visitInsn(DUP);
             mv.visitLdcInsn(typeName);
-            mv.visitMethodInsn(INVOKESTATIC, HELPER, "matchesException", JvmHelder.SmatchesException, false);
+            mv.visitMethodInsn(INVOKESTATIC, HELPER, "matchesException", JvmHelper.SmatchesException, false);
             Label next = new Label();
             mv.visitJumpInsn(IFEQ, next);
             emitJumpAbsolute(mv, jumpTargets, target, blockStart, blockEnd);
@@ -589,7 +576,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
 
         if (starArg != null) mv.visitLdcInsn(starArg); else mv.visitInsn(ACONST_NULL);
         if (kwArg != null) mv.visitLdcInsn(kwArg); else mv.visitInsn(ACONST_NULL);
-        mv.visitMethodInsn(INVOKESTATIC, HELPER, "bindArgs", JvmHelder.SbindArgs, false);
+        mv.visitMethodInsn(INVOKESTATIC, HELPER, "bindArgs", JvmHelper.SbindArgs, false);
         mv.visitInsn(POP);
 
         for (String f : cellVars) {
@@ -637,7 +624,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
                                            int target, int blockStart, int blockEnd) {
         mv.visitVarInsn(ALOAD, 1);
         mv.visitInsn(SWAP);
-        mv.visitMethodInsn(INVOKESTATIC, HELPER, "truthy", JvmHelder.Struthy, false);
+        mv.visitMethodInsn(INVOKESTATIC, HELPER, "truthy", JvmHelper.Struthy, false);
         if (target >= blockStart && target < blockEnd) {
             mv.visitJumpInsn(IFEQ, jumpTargets.get(target));
         } else {
@@ -736,7 +723,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
         mv.visitJumpInsn(IFNONNULL, labelFound);
         mv.visitInsn(POP);
         mv.visitLdcInsn(name);
-        mv.visitMethodInsn(INVOKESTATIC, HELPER, "nameError", JvmHelder.SnameError, false);
+        mv.visitMethodInsn(INVOKESTATIC, HELPER, "nameError", JvmHelper.SnameError, false);
         mv.visitJumpInsn(GOTO, labelFound);
 
         mv.visitLabel(labelFound);
@@ -785,7 +772,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
             mv.visitInsn(AASTORE);
         }
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitMethodInsn(INVOKESTATIC, HELPER, "buildClass", JvmHelder.SbuildClass, false);
+        mv.visitMethodInsn(INVOKESTATIC, HELPER, "buildClass", JvmHelper.SbuildClass, false);
     }
 
     private static void emitBuildTuple(MethodVisitor mv, int size, int tempSlot) {
@@ -826,7 +813,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
         mv.visitVarInsn(ALOAD, 1);
         mv.visitInsn(SWAP);
         pushInt(mv, count);
-        mv.visitMethodInsn(INVOKESTATIC, HELPER, "unpack", JvmHelder.Sunpack, false);
+        mv.visitMethodInsn(INVOKESTATIC, HELPER, "unpack", JvmHelper.Sunpack, false);
         mv.visitVarInsn(ASTORE, tempSlot);
 
         for (int i = 0; i < count; i++) {
@@ -845,7 +832,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
         mv.visitVarInsn(ALOAD, tempSlot);
         mv.visitVarInsn(ALOAD, tempSlot + 1);
         mv.visitVarInsn(ALOAD, tempSlot + 2);
-        mv.visitMethodInsn(INVOKESTATIC, HELPER, "storeSubscript", JvmHelder.SstoreSubscript, false);
+        mv.visitMethodInsn(INVOKESTATIC, HELPER, "storeSubscript", JvmHelper.SstoreSubscript, false);
     }
 
     private static void emitBinaryOperator(MethodVisitor mv, BinaryOperator operator) {
@@ -900,7 +887,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
         mv.visitJumpInsn(IFNE, isNumber);
         mv.visitVarInsn(ALOAD, 1);
         mv.visitLdcInsn(dunderName);
-        mv.visitMethodInsn(INVOKESTATIC, HELPER, "overloadOperator", JvmHelder.SoverloadOperator, false);
+        mv.visitMethodInsn(INVOKESTATIC, HELPER, "overloadOperator", JvmHelper.SoverloadOperator, false);
         mv.visitJumpInsn(GOTO, end);
 
         mv.visitLabel(isNumber);
@@ -909,7 +896,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
         mv.visitInsn(SWAP);
         mv.visitMethodInsn(INVOKEINTERFACE, PYP_NUMBER, methodName,
                 "(L%s;)L%s;".formatted(PY_OBJECT, PY_OBJECT), true);
-        mv.visitMethodInsn(INVOKESTATIC, HELPER, "checkNotImplemented", JvmHelder.ScheckNotImplemented, false);
+        mv.visitMethodInsn(INVOKESTATIC, HELPER, "checkNotImplemented", JvmHelper.ScheckNotImplemented, false);
         mv.visitLabel(end);
     }
 
@@ -924,7 +911,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
 
         mv.visitVarInsn(ALOAD, 1);
         mv.visitLdcInsn(dunderName);
-        mv.visitMethodInsn(INVOKESTATIC, HELPER, "overloadOperator", JvmHelder.SoverloadOperator, false);
+        mv.visitMethodInsn(INVOKESTATIC, HELPER, "overloadOperator", JvmHelper.SoverloadOperator, false);
         mv.visitJumpInsn(GOTO, end);
 
         mv.visitLabel(isComp);
@@ -933,7 +920,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
         mv.visitInsn(SWAP);
         mv.visitMethodInsn(INVOKEINTERFACE, PYP_COMPARABLE, methodName,
                 "(L%s;)L%s;".formatted(PY_OBJECT, PY_OBJECT), true);
-        mv.visitMethodInsn(INVOKESTATIC, HELPER, "checkNotImplemented", JvmHelder.ScheckNotImplemented, false);
+        mv.visitMethodInsn(INVOKESTATIC, HELPER, "checkNotImplemented", JvmHelper.ScheckNotImplemented, false);
 
         mv.visitLabel(end);
     }
@@ -941,8 +928,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
     private static void emitUnaryNot(MethodVisitor mv) {
         mv.visitVarInsn(ALOAD, 1);
         mv.visitInsn(SWAP);
-        mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "truthy",
-                "(L%s;L%s;)Z".formatted(RUN_EXECUTER, PY_OBJECT), false);
+        mv.visitMethodInsn(INVOKESTATIC, HELPER, "truthy", JvmHelper.Struthy, false);
         Label labelTrue = new Label();
         Label labelEnd = new Label();
         mv.visitJumpInsn(IFNE, labelTrue);
@@ -958,8 +944,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
         mv.visitVarInsn(ASTORE, valueSlot);
         mv.visitVarInsn(ALOAD, 1);
         mv.visitVarInsn(ALOAD, valueSlot);
-        mv.visitMethodInsn(INVOKESTATIC, JVM_COMPILER, "truthy",
-                "(L%s;L%s;)Z".formatted(RUN_EXECUTER, PY_OBJECT), false);
+        mv.visitMethodInsn(INVOKESTATIC, HELPER, "truthy", JvmHelper.Struthy, false);
 
         Label loadAndGo = new Label();
         Label notTaken = new Label();
@@ -1146,13 +1131,13 @@ public class JvmCompiler implements Opcodes, AsmTypes {
         }
         mv.visitVarInsn(ALOAD, tempSlot + 3);
         mv.visitVarInsn(ALOAD, tempSlot + 4);
-        mv.visitMethodInsn(INVOKESTATIC, HELPER, "makeGeneratorFunction", JvmHelder.SmakeGeneratorFunction, false);
+        mv.visitMethodInsn(INVOKESTATIC, HELPER, "makeGeneratorFunction", JvmHelper.SmakeGeneratorFunction, false);
     }
 
     private static void emitGetIter(MethodVisitor mv) {
         mv.visitVarInsn(ALOAD, 1);
         mv.visitInsn(SWAP);
-        mv.visitMethodInsn(INVOKESTATIC, HELPER, "getIter", JvmHelder.SgetIter, false);
+        mv.visitMethodInsn(INVOKESTATIC, HELPER, "getIter", JvmHelper.SgetIter, false);
     }
 
     private static void emitImport(MethodVisitor mv, String moduleName, String alias) {
@@ -1163,7 +1148,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
         } else {
             mv.visitInsn(ACONST_NULL);
         }
-        mv.visitMethodInsn(INVOKESTATIC, HELPER, "doImport", JvmHelder.SdoImport, false);
+        mv.visitMethodInsn(INVOKESTATIC, HELPER, "doImport", JvmHelper.SdoImport, false);
     }
 
     private static void emitImportFrom(MethodVisitor mv, String moduleName, List<String> names){
@@ -1179,13 +1164,13 @@ public class JvmCompiler implements Opcodes, AsmTypes {
             mv.visitInsn(AASTORE);
         }
 
-        mv.visitMethodInsn(INVOKESTATIC, HELPER, "doImportFrom", JvmHelder.SdoImportFrom, false);
+        mv.visitMethodInsn(INVOKESTATIC, HELPER, "doImportFrom", JvmHelper.SdoImportFrom, false);
     }
 
     private static void emitRaiseException(MethodVisitor mv) {
         mv.visitVarInsn(ALOAD, 1);
         mv.visitInsn(SWAP);
-        mv.visitMethodInsn(INVOKESTATIC, HELPER, "raiseException", JvmHelder.SraiseException, false);
+        mv.visitMethodInsn(INVOKESTATIC, HELPER, "raiseException", JvmHelper.SraiseException, false);
     }
 
     private static void emitDeleteName(MethodVisitor mv, String name, Map<String, Integer> localSlots, int localsSlot) {
@@ -1205,7 +1190,7 @@ public class JvmCompiler implements Opcodes, AsmTypes {
     }
 
     private static void emitAssert(MethodVisitor mv) {
-        mv.visitMethodInsn(INVOKESTATIC, HELPER, "assertFail", JvmHelder.SassertFail, false);
+        mv.visitMethodInsn(INVOKESTATIC, HELPER, "assertFail", JvmHelper.SassertFail, false);
     }
 
     private static void pushInt(MethodVisitor mv, int val) {

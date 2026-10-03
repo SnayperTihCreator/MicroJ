@@ -1,7 +1,6 @@
 package org.tihrc.microj.compiler.instruction;
 
-import org.tihrc.microj.backend.jvm.JvmCompiler;
-import org.tihrc.microj.backend.jvm.JvmHelder;
+import org.tihrc.microj.backend.jvm.JvmHelper;
 import org.tihrc.microj.compiler.BinaryOperator;
 import org.tihrc.microj.compiler.Instruction;
 import org.tihrc.microj.compiler.UnaryOperator;
@@ -10,10 +9,7 @@ import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.types.callables.PyFunction;
 import org.tihrc.microj.types.core.PyNotImplemented;
 import org.tihrc.microj.types.primitives.PyBool;
-import org.tihrc.microj.types.primitives.PyInt;
-import org.tihrc.microj.units.FastMap;
 import org.tihrc.microj.units.Frame;
-import org.tihrc.microj.units.SmartInt;
 
 public class OperatorInstructions {
     public record BinaryOp(BinaryOperator type) implements Instruction {
@@ -194,7 +190,7 @@ public class OperatorInstructions {
 
     public record UnaryNot() implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter ctx) {
-            f.stack.push(PyBool.from(!JvmHelder.truthy(ctx, f.stack.pop())));
+            f.stack.push(PyBool.from(!JvmHelper.truthy(ctx, f.stack.pop())));
             return true;
         }
     }

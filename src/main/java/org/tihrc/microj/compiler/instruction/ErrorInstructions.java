@@ -1,9 +1,7 @@
 package org.tihrc.microj.compiler.instruction;
 
-import org.tihrc.microj.backend.jvm.JvmCompiler;
-import org.tihrc.microj.backend.jvm.JvmHelder;
+import org.tihrc.microj.backend.jvm.JvmHelper;
 import org.tihrc.microj.compiler.Instruction;
-import org.tihrc.microj.core.Protocols;
 import org.tihrc.microj.core.PyObject;
 import org.tihrc.microj.core.RuntimeExecuter;
 import org.tihrc.microj.core.exceptions.*;
@@ -72,7 +70,7 @@ public class ErrorInstructions {
             PyObject msg = f.stack.pop();
             PyObject cond = f.stack.pop();
 
-            if (!JvmHelder.truthy(ctx, cond)) {
+            if (!JvmHelper.truthy(ctx, cond)) {
                 String msgStr = (msg == PyNone.INSTANCE) ? "assertion failed" : msg.pyDanderStr();
                 new Exceptions.PyAssertionError(msgStr).raise();
             }

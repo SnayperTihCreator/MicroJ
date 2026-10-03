@@ -26,8 +26,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public final class JvmHelder implements AsmTypes{
-    private JvmHelder() {}
+public final class JvmHelper implements AsmTypes{
+    private JvmHelper() {}
 
     @SuppressWarnings("unused")
     public static PyObject buildClass(String name, Map<String, PyObject> attrs, String[] baseNames, RuntimeExecuter ctx) {

@@ -1,7 +1,6 @@
 package org.tihrc.microj.compiler.instruction;
 
-import org.tihrc.microj.backend.jvm.JvmCompiler;
-import org.tihrc.microj.backend.jvm.JvmHelder;
+import org.tihrc.microj.backend.jvm.JvmHelper;
 import org.tihrc.microj.compiler.Instruction;
 import org.tihrc.microj.core.exceptions.ExceptionsRegistry;
 import org.tihrc.microj.core.exceptions.PyUnwind;
@@ -10,13 +9,12 @@ import org.tihrc.microj.units.Frame;
 import org.tihrc.microj.core.*;
 import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.types.callables.PyFunction;
-import org.tihrc.microj.types.primitives.PyBool;
 
 public class ControlFlowInstructions {
     public record PopJumpIfFalse(int target) implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject cond = f.stack.pop();
-            if (!JvmHelder.truthy(ctx, cond)) {
+            if (!JvmHelper.truthy(ctx, cond)) {
                 f.pc = target;
                 return false;
             }
@@ -34,7 +32,7 @@ public class ControlFlowInstructions {
     public record JumpIfFalseOrPop(int target) implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject cond = f.stack.peek();
-            if (!JvmHelder.truthy(ctx, cond)) {
+            if (!JvmHelper.truthy(ctx, cond)) {
                 f.pc = target;
                 return false;
             }
@@ -46,7 +44,7 @@ public class ControlFlowInstructions {
     public record JumpIfTrueOrPop(int target) implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject cond = f.stack.peek();
-            if (JvmHelder.truthy(ctx, cond)) {
+            if (JvmHelper.truthy(ctx, cond)) {
                 f.pc = target;
                 return false;
             }
