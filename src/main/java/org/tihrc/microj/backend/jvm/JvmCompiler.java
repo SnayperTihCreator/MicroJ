@@ -12,7 +12,7 @@ import org.tihrc.microj.units.LineTables;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class JvmCompiler implements Opcodes, AsmTypes {
+public final class JvmCompiler implements Opcodes, AsmTypes {
     private static final AtomicLong CLASS_COUNTER = new AtomicLong(0);
     private static final AtomicLong FUNC_COUNTER = new AtomicLong(0);
     private static final Boolean DEBUG_BLOCKS = Boolean.getBoolean("microj.debug_block");

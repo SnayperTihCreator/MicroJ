@@ -15,7 +15,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public class BuilderInstructions {
+public final class BuilderInstructions {
+    private BuilderInstructions() {}
+
     public record BuildList(int size) implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter ctx) {
             if (size > 100) {

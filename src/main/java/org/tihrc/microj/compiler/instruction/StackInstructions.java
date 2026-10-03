@@ -9,7 +9,9 @@ import org.tihrc.microj.core.RuntimeExecuter;
 import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.units.FrameTask;
 
-public class StackInstructions {
+public final class StackInstructions {
+    private StackInstructions() {}
+
     public record LoadConst(int index) implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter ctx) {
             f.stack.push(f.constants[index]);

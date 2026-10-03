@@ -8,7 +8,9 @@ import org.tihrc.microj.units.Frame;
 
 import java.util.List;
 
-public class ImportInstructions {
+public final class ImportInstructions {
+    private ImportInstructions() {}
+
     public record Import(String moduleName, String alias) implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter ctx) {
             RuntimeLibrary library = ctx.getVM().getLib();

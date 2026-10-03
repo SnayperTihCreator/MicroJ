@@ -12,7 +12,8 @@ import org.tihrc.microj.types.objects.PyInstance;
 import org.tihrc.microj.types.objects.PyModule;
 import org.tihrc.microj.units.Frame;
 
-public class AttributeInstructions {
+public final class AttributeInstructions {
+    private  AttributeInstructions() {}
     public record GetAttr(String name) implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject obj = f.stack.pop();

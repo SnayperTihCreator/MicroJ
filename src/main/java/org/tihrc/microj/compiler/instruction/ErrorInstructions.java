@@ -11,7 +11,9 @@ import org.tihrc.microj.types.core.PyNone;
 import org.tihrc.microj.units.Constants;
 import org.tihrc.microj.units.Frame;
 
-public class ErrorInstructions {
+public final class ErrorInstructions {
+    private ErrorInstructions() {}
+
     public record SetupExcept(int handler) implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter ctx) {
             f.pushTryHandler(handler, f.pc);

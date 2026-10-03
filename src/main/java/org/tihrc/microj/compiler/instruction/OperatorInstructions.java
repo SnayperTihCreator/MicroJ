@@ -11,7 +11,9 @@ import org.tihrc.microj.types.core.PyNotImplemented;
 import org.tihrc.microj.types.primitives.PyBool;
 import org.tihrc.microj.units.Frame;
 
-public class OperatorInstructions {
+public final class OperatorInstructions {
+    private OperatorInstructions() {}
+
     public record BinaryOp(BinaryOperator type) implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject right = f.stack.pop();

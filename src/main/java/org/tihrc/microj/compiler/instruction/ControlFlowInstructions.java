@@ -10,7 +10,9 @@ import org.tihrc.microj.core.*;
 import org.tihrc.microj.core.exceptions.Exceptions;
 import org.tihrc.microj.types.callables.PyFunction;
 
-public class ControlFlowInstructions {
+public final class ControlFlowInstructions {
+    private  ControlFlowInstructions() {}
+
     public record PopJumpIfFalse(int target) implements Instruction {
         public boolean execute(Frame f, RuntimeExecuter ctx) {
             PyObject cond = f.stack.pop();

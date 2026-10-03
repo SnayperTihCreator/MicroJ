@@ -19,7 +19,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-public class CallInstructions {
+public final class CallInstructions {
+    private CallInstructions() {}
+
     private static PyObject preBindFreeVars(Frame f, RuntimeExecuter ctx, List<String> freeVars, Map<String, PyObject> closure) {
         PyObject defaults = f.stack.pop();
         if (f.locals != ctx.getGlobals()) {
